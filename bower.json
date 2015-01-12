@@ -6,8 +6,7 @@
     "purescript-node-path": "*"
   },
   "devDependencies": {
-    "purescript-quickcheck": "*",
-    "purescript-strongcheck": "*"
+    "purescript-quickcheck": "*"
   },
   "ignore": [
     "**/.*",
