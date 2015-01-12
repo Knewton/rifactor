@@ -1,0 +1,37 @@
+{
+  "author": {
+    "name": "Tim Dysinger",
+    "url": "http://github.com/dysinger/"
+  },
+  "bin": {
+    "kia": "run.js"
+  },
+  "dependencies": {
+    "aws-sdk": "*"
+  },
+  "description": "AWS Reserved Instance Optimization",
+  "devDependencies": {
+    "bower": "*",
+    "grunt": "*",
+    "grunt-cli": "*",
+    "grunt-configure": "*",
+    "grunt-contrib-clean": "*",
+    "grunt-contrib-watch": "*",
+    "grunt-copy": "*",
+    "grunt-execute": "*",
+    "grunt-purescript": "*",
+    "load-grunt-tasks": "*",
+    "time-grunt": "*"
+  },
+  "engines": {
+    "node": ">=0.10"
+  },
+  "main": "main.js",
+  "name": "rifactor",
+  "preferGlobal": true,
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/Knewton/rifactor.git"
+  },
+  "version": "0.1.0"
+}
