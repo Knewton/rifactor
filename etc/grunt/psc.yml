@@ -1,18 +1,18 @@
-options:
-  main: true
-  module: Main
-
 main:
+  options:
+    main: true
+    module: Main
   src:
   - "src/**/*.purs"
   - "bower_components/purescript-*/src/**/*.purs"
   dest: main.js
 
 test:
+  options:
+    main: Test.Main
+    module: Test.Main
   src:
   - "test/**/*.purs"
-  - "src/AWS.purs"
-  - "src/Winston.purs"
-  - "src/KIA/**/*.purs"
+  - "src/**/*.purs"
   - "bower_components/purescript-*/src/**/*.purs"
   dest: test.js
