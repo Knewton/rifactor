@@ -1,0 +1,6 @@
+purs:
+  files:
+  - "**/*.purs"
+  tasks:
+  - "psc:test"
+  - "execute:test"

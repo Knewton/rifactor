@@ -1,0 +1,18 @@
+options:
+  main: true
+  module: Main
+
+main:
+  src:
+  - "src/**/*.purs"
+  - "bower_components/purescript-*/src/**/*.purs"
+  dest: main.js
+
+test:
+  src:
+  - "test/**/*.purs"
+  - "src/AWS.purs"
+  - "src/Winston.purs"
+  - "src/KIA/**/*.purs"
+  - "bower_components/purescript-*/src/**/*.purs"
+  dest: test.js
