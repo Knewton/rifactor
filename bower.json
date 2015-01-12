@@ -1,0 +1,18 @@
+{
+  "dependencies": {
+    "purescript-either": "*",
+    "purescript-foreign": "*",
+    "purescript-node-fs": "*",
+    "purescript-node-path": "*"
+  },
+  "devDependencies": {
+    "purescript-quickcheck": "*",
+    "purescript-strongcheck": "*"
+  },
+  "ignore": [
+    "**/.*",
+    "bower_components",
+    "node_modules"
+  ],
+  "name": "rifactor"
+}
