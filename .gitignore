@@ -1,8 +1,11 @@
+.cabal-sandbox
 .psci
 .psci_modules
 bower_components
+cabal.sandbox.config
+dist
 main.js
 node_modules
+output
 test.js
 tmp
-/output/

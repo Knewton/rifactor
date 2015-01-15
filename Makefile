@@ -1,4 +1,10 @@
-default: build
+default: .cabal-sandbox/bin/rifactor
+
+.cabal-sandbox:
+	cabal sandbox init
+
+.cabal-sandbox/bin/rifactor: | .cabal-sandbox
+	cabal install || cabal install --force-reinstalls
 
 # JS: INSTALL NPM DEPENDENCIES
 node_modules: package.json
@@ -17,12 +23,12 @@ test: node_modules bower_components
 	node_modules/.bin/grunt test
 
 clean:
+	cabal clean
 	if [ -f node_modules/.bin/grunt ]; then node_modules/.bin/grunt clean ; fi
 
 distclean: clean
+	rm -rf .cabal-sandbox
 	rm -rf node_modules bower_components
-
-TMP := $(shell mktemp -d)
 
 .PHONY: \
 	build \
