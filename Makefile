@@ -1,38 +1,27 @@
+# Module      : Rifactor.Plan
+# Copyright   : (c) 2015 Knewton, Inc <se@knewton.com>
+#               (c) 2015 Tim Dysinger <tim@dysinger.net> (contributor)
+# License     : Apache 2.0 http://opensource.org/licenses/Apache-2.0
+# Maintainer  : Tim Dysinger <tim@dysinger.net>
+# Stability   : experimental
+# Portability : non-portable (GHC extensions)
+
 default: .cabal-sandbox/bin/rifactor
 
 .cabal-sandbox:
-	cabal sandbox init
+	@cabal sandbox init
 
 .cabal-sandbox/bin/rifactor: | .cabal-sandbox
-	cabal install || cabal install --force-reinstalls
-
-# JS: INSTALL NPM DEPENDENCIES
-node_modules: package.json
-	npm install
-
-# JS: INSTALL BOWER DEPENDENCIES
-bower_components: node_modules bower.json
-	node_modules/.bin/bower --allow-root install
-
-# JS: BUILD
-build: node_modules bower_components
-	node_modules/.bin/grunt build
-
-# JS: TEST
-test: node_modules bower_components
-	node_modules/.bin/grunt test
+	@cabal update
+	@cabal install \
+		--enable-executable-stripping \
+		--enable-split-objs \
+		--force-reinstalls
 
 clean:
-	cabal clean
-	if [ -f node_modules/.bin/grunt ]; then node_modules/.bin/grunt clean ; fi
+	@cabal clean
 
 distclean: clean
-	rm -rf .cabal-sandbox
-	rm -rf node_modules bower_components
+	@rm -rf .cabal-sandbox dist
 
-.PHONY: \
-	build \
-	clean \
-	default \
-	distclean \
-	test
+.PHONY: default clean distclean
