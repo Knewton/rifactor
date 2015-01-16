@@ -10,7 +10,6 @@
 -- Stability   : experimental
 -- Portability : non-portable (GHC extensions)
 
-import BasePrelude
 import Control.Monad.Trans.AWS (Error)
 import Options.Applicative
 import Rifactor.Plan
@@ -18,14 +17,18 @@ import Rifactor.Types
 
 planParserInfo :: ParserInfo Options
 planParserInfo =
-  info (helper <*> (Plan <$> switch (long "verbose" <> help "Be verbose")))
+  info (helper <*>
+        (Plan <$>
+         switch (long "verbose" <>
+                 help "Be verbose")))
        (fullDesc <>
         header "RIFactor plan" <>
         progDesc "Discover state, plan savings & print the plan")
 
 mainParserInfo :: ParserInfo Options
 mainParserInfo =
-  info (helper <*> subparser (command "plan" planParserInfo))
+  info (helper <*>
+        subparser (command "plan" planParserInfo))
        (fullDesc <>
         header "RIFactor" <>
         progDesc "Optimize AWS Reserved Instances")

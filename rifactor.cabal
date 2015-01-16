@@ -8,7 +8,7 @@ author:              Tim Dysinger
 maintainer:          tim@dysinger.net
 build-type:          Simple
 extra-source-files:  README.md
-cabal-version:       >=1.10
+cabal-version:       >=1.22
 
 executable rifactor
   default-language:    Haskell2010
@@ -17,10 +17,8 @@ executable rifactor
   ghc-options:         -Wall
   build-depends:       aeson                ==0.8.*
                      , amazonka             ==0.2.*
-                     , amazonka-core        ==0.2.*
                      , amazonka-ec2         ==0.2.*
-                     , base                 ==4.7.*
-                     , base-prelude         ==0.1.*
+                     , base                 ==4.8.*
                      , bytestring           ==0.10.*
                      , conduit              ==1.2.*
                      , git-embed            ==0.1.*
