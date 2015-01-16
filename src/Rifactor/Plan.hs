@@ -60,58 +60,58 @@ plan _opts =
               do forM_ (view dvrVolumes response) $
                    \x -> say "\t" (x ^. vVolumeId)
           say "Snapshots " ts
-          result2 <- sendCatch describeSnapshots
-          case result2 of
+          snapshotsResult <- sendCatch describeSnapshots
+          case snapshotsResult of
             (Left err) -> say "Error " err
             (Right response) ->
               do forM_ (view dsrSnapshots response) $
                    \x ->
                      say "\t" (x ^. sSnapshotId)
-          -- say "Images " ts
-          -- result4 <- sendCatch describeImages
-          -- case result4 of
-          --   (Left err) -> say "Error " err
-          --   (Right response) ->
-          --     do forM_ (view dirImages response) $
-          --          \x -> say "\t" (x ^. iImageId)
-          -- say "Regions " ts
-          -- result5 <- sendCatch describeRegions
-          -- case result5 of
-          --   (Left err) -> say "Error " err
-          --   (Right response) ->
-          --     do forM_ (view drrRegions response) $
-          --          \x ->
-          --            say "\t" (x ^. rRegionName)
-          -- say "Addresses " ts
-          -- result6 <- sendCatch describeAddresses
-          -- case result6 of
-          --   (Left err) -> say "Error " err
-          --   (Right response) ->
-          --     do forM_ (view darAddresses response) $
-          --          \x -> say "\t" (x ^. aPublicIp)
-          -- say "Subnets " ts
-          -- result7 <- sendCatch describeSubnets
-          -- case result7 of
-          --   (Left err) -> say "Error " err
-          --   (Right response) ->
-          --     do forM_ (view dsrSubnets response) $
-          --          \x ->
-          --            say "\t" (x ^. s1SubnetId)
-          -- say "Key Pairs " ts
-          -- result8 <- sendCatch describeKeyPairs
-          -- case result8 of
-          --   (Left err) -> say "Error " err
-          --   (Right response) ->
-          --     do forM_ (view dkprKeyPairs response) $
-          --          \x ->
-          --            say "\t" (x ^. kpiKeyName)
-          -- say "VPCs " ts
-          -- result9 <- sendCatch describeVpcs
-          -- case result9 of
-          --   (Left err) -> say "Error " err
-          --   (Right response) ->
-          --     do forM_ (view dvrVpcs response) $
-          --          \x -> say "\t" (x ^. vpcVpcId)
+          say "Images " ts
+          imagesResult <- sendCatch describeImages
+          case imagesResult of
+            (Left err) -> say "Error " err
+            (Right response) ->
+              do forM_ (view dirImages response) $
+                   \x -> say "\t" (x ^. iImageId)
+          say "Regions " ts
+          regionsResult <- sendCatch describeRegions
+          case regionsResult of
+            (Left err) -> say "Error " err
+            (Right response) ->
+              do forM_ (view drrRegions response) $
+                   \x ->
+                     say "\t" (x ^. rRegionName)
+          say "Addresses " ts
+          addressesResult <- sendCatch describeAddresses
+          case addressesResult of
+            (Left err) -> say "Error " err
+            (Right response) ->
+              do forM_ (view darAddresses response) $
+                   \x -> say "\t" (x ^. aPublicIp)
+          say "Subnets " ts
+          subnetsResult <- sendCatch describeSubnets
+          case subnetsResult of
+            (Left err) -> say "Error " err
+            (Right response) ->
+              do forM_ (view dsrSubnets response) $
+                   \x ->
+                     say "\t" (x ^. s1SubnetId)
+          say "Key Pairs " ts
+          keyPairsResult <- sendCatch describeKeyPairs
+          case keyPairsResult of
+            (Left err) -> say "Error " err
+            (Right response) ->
+              do forM_ (view dkprKeyPairs response) $
+                   \x ->
+                     say "\t" (x ^. kpiKeyName)
+          say "VPCs " ts
+          vpcsResult <- sendCatch describeVpcs
+          case vpcsResult of
+            (Left err) -> say "Error " err
+            (Right response) ->
+              do forM_ (view dvrVpcs response) $
+                   \x -> say "\t" (x ^. vpcVpcId)
 
 say :: Show a => Build.Builder -> a -> AWST IO ()
 say msg = info . mappend msg . Build.stringUtf8 . show
