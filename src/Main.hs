@@ -19,8 +19,18 @@ planParserInfo :: ParserInfo Options
 planParserInfo =
   info (helper <*>
         (Plan <$>
-         switch (long "verbose" <>
-                 help "Be verbose")))
+         (option auto
+                 (long "config-file" <>
+                  short 'c' <>
+                  metavar "FILE" <>
+                  help "Read config from FILE") <|>
+          pure "config.json") <*>
+         (option auto
+                 (long "log-level" <>
+                  short 'l' <>
+                  metavar "LEVEL" <>
+                  help "Set the logging LEVEL") <|>
+          pure "info")))
        (fullDesc <>
         header "RIFactor plan" <>
         progDesc "Discover state, plan savings & print the plan")
@@ -33,8 +43,6 @@ mainParserInfo =
         header "RIFactor" <>
         progDesc "Optimize AWS Reserved Instances")
 
-exec :: Options -> IO (Either Error ())
 exec opts@Plan{..} = plan opts
 
-main :: IO (Either Error ())
 main = exec =<< execParser mainParserInfo

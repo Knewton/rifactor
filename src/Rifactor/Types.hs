@@ -1,6 +1,4 @@
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE TemplateHaskell #-}
 
 -- Module      : Rifactor.Types
 -- Copyright   : (c) 2015 Knewton, Inc <se@knewton.com>
@@ -12,5 +10,34 @@
 
 module Rifactor.Types where
 
+import Control.Lens (makeLenses)
+import Data.Aeson.TH (deriveJSON, defaultOptions, fieldLabelModifier)
+import Data.Char (toLower)
+import Rifactor.Types.Internal
+import Network.AWS.Types
+
 data Options =
-  Plan {verbose :: Bool}
+  Plan {_configFile :: FilePath
+       ,_logLevel :: String}
+
+data Config =
+  Config {_accounts :: [Account]
+         ,_regions :: [Region]}
+
+data Account =
+  Account {_name :: String
+          ,_accessKey :: String
+          ,_secretKey :: String}
+
+{- Lenses -}
+
+$(makeLenses ''Account)
+$(makeLenses ''Config)
+$(makeLenses ''Options)
+
+{- JSON -}
+
+$(deriveJSON deriveOptions ''Account)
+$(deriveJSON deriveOptions ''Config)
+$(deriveJSON deriveOptions ''Options)
+$(deriveJSON deriveOptions ''Region)
