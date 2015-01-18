@@ -110,7 +110,10 @@ allReservedInstances envs =
 envReservedInstances =
   flip runAWST
        (view drirReservedInstances <$>
-        send (describeReservedInstances))
+        send (describeReservedInstances & driFilters .~
+              [filter' "state" &
+               fValues .~
+               [toText RISActive]]))
 
 allReservedInstancesModifications envs =
   foldM (\acc env ->
