@@ -68,14 +68,21 @@ environments lgr reg account =
 fetchData opts cfg lgr uuid =
   forM_ (cfg ^. regions)
         (\reg ->
-           do envs <- mapM (environments lgr reg) (cfg ^. accounts)
+           do envs <- mapM (environments lgr reg)
+                           (cfg ^. accounts)
+              putStrLn (T.unpack (toText reg) ++ " for all accounts")
               reservations <- allRunningReservations envs
               let instances =
                     (foldl (\a x -> a ++ x ^. rInstances) [] reservations)
-              rinstances <- allReservedInstances envs
-              forM_ rinstances print
+              rinst <- allReservedInstances envs
+              putStrLn ("\t" ++
+                        show (length rinst) ++
+                        " reserved instances")
               mods <- allReservedInstancesModifications envs
-              forM_ mods print)
+              putStrLn ("\t" ++
+                        show (length mods) ++
+                        " reserved instances modifications:")
+              forM_ mods (print . mappend "\t\t" . show))
 
 allRunningReservations envs =
   foldM (\acc env ->
