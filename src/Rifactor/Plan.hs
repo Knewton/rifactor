@@ -140,14 +140,17 @@ envReservedInstancesModifications =
 
 {-
 
-Plan:
--- map over accounts in the same region
-   -- map over all non-retired reserved instances in the region
-   -- are there any unused?
-   -- what instances could they be applied to?
-      -- find instances to match a RI (in the same region)
-         -- change the AZ to match (if needed)
-         -- change the network platform to match (if needed)
-         -- change the instance type to match (if needed)
+Solver: (repeat every 5 minutes)
+-- for all accounts in the same region
+   -- for all non-retired non-100% utilized reserved instances (RI)
+      -- create a plan for each
+         -- if there isn't a modification in progress for this RI
+            -- position the RI for the biggest pool of nodes we can find
+               -- add a pool of instances that match the RI exactly already
+               -- modify the RI to be ready for bigger pools of nodes
+                  -- search (sorted) & on availability-zone, network & instance type
+               -- release all instances from any sub-optimal RI
+                  EG, 6 node RI is in 1C, only 2 'VPC' nodes in 1C. 9 dangling 'CLASSIC' nodes in 1A.
+               -- reduce instances from algorithm state (ones listed in RI modifications)
 
 -}
