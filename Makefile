@@ -14,10 +14,13 @@ default: .cabal-sandbox/bin/rifactor
 .cabal-sandbox/bin/rifactor: | .cabal-sandbox
 	@cabal install
 
+doc:
+	@cabal haddock --hyperlink-source
+
 clean:
 	@cabal clean
 
 distclean: clean
 	@rm -rf .cabal-sandbox dist
 
-.PHONY: default clean distclean
+.PHONY: default doc clean distclean
