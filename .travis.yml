@@ -8,20 +8,19 @@ before_install:
  - travis_retry sudo apt-get update
  - travis_retry sudo apt-get install cabal-install-$CABALVER ghc-$GHCVER llvm
  - export PATH=/opt/ghc/$GHCVER/bin:/opt/cabal/$CABALVER/bin:$PATH
- - export CABAL_FLAGS="--ghc-options='-fllvm -static -optc-static -enable-threads -rtsopts -eventLog -debug' --enable-split-objs --enable-executable-stripping --enable-library-stripping --enable-tests --enable-benchmarks --program-suffix='-'$(cabal info .|grep 'Versions installed'|cut -d' ' -f7)'-'$(git log HEAD~1..HEAD --pretty=%h) --require-sandbox"
 
 install:
  - cabal --version
  - echo "$(ghc --version) [$(ghc --print-project-git-commit-id 2> /dev/null || echo '?')]"
  - travis_retry cabal update
  - cabal sandbox init
- - if ! cabal install $CABAL_FLAGS --only-dependencies ; then
+ - if ! cabal install --enable-split-objs --enable-library-stripping --only-dependencies --ghc-options='-fllvm -static -threaded -rtsopts -eventlog -debug' ; then
      cat "$HOME"/.cabal/logs/*.log ;
      exit 1 ;
    fi
 
 script:
- - cabal configure $CABAL_FLAGS -v2
+ - cabal install -v2 --enable-split-objs --enable-executable-stripping --enable-tests --enable-benchmarks --program-suffix=-$(cabal info .|head -n 1|cut -d' ' -f2|cut -d'-' -f2)-$(git log HEAD~1..HEAD --pretty=%h) --ghc-options='-fllvm -static -threaded -rtsopts -eventlog -debug'
  - cabal test
  - cabal check
  - cabal haddock
