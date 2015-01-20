@@ -25,9 +25,9 @@ install:
    fi
 
 script:
+ - cabal check
  - cabal install -v2 --enable-tests --enable-benchmarks --program-suffix=-$(cabal info .|head -n 1|cut -d' ' -f2|cut -d'-' -f2)-$(git log HEAD~1..HEAD --pretty=%h)
  - cabal test
- - cabal check
  # - cabal haddock
  # - cabal sdist
  # - export SRC_TGZ=$(cabal info . | awk '{print $2 ".tar.gz";exit}') ;
