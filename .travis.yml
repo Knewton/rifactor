@@ -1,7 +1,7 @@
 # https://github.com/hvr/multi-ghc-travis
 
 env:
- - CABALVER=1.22 GHCVER=7.10.1 LLVMVER=3.5
+ - CABALVER=1.22 GHCVER=7.10.1 LLVMVER=3.4
 
 before_install:
  - travis_retry wget -O - http://llvm.org/apt/llvm-snapshot.gpg.key|sudo apt-key add -
