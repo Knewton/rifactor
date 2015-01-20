@@ -8,8 +8,14 @@ default: .cabal-sandbox/bin/rifactor
 .cabal-sandbox:
 	@cabal sandbox init
 
-build: | .cabal-sandbox
-	@cabal install --enable-tests
+.cabal-sandbox/src/amazonka: | .cabal-sandbox
+	@git clone --branch=develop --depth=1 git://github.com/dysinger/amazonka ./.cabal-sandbox/src/amazonka
+	@cabal sandbox add-source ./.cabal-sandbox/src/amazonka/core
+	@cabal sandbox add-source ./.cabal-sandbox/src/amazonka/amazonka
+	@cabal sandbox add-source ./.cabal-sandbox/src/amazonka/amazonka-ec2
+
+build: | .cabal-sandbox/src/amazonka
+	@cabal install --enable-tests --enable-benchmarks
 
 .cabal-sandbox/bin/rifactor: | build
 .cabal-sandbox/bin/test: | build
