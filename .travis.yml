@@ -13,7 +13,10 @@ install:
  - cabal --version
  - echo "$(ghc --version) [$(ghc --print-project-git-commit-id 2> /dev/null || echo '?')]"
  - travis_retry cabal update
- - cabal install --only-dependencies --enable-tests --enable-benchmarks
+ - if ! cabal install --only-dependencies --enable-tests --enable-benchmarks ; then
+     cat "$HOME"/.cabal/logs/*.log ;
+     exit 1 ;
+   fi
 
 script:
  - cabal configure --enable-tests --enable-benchmarks -v2
