@@ -21,13 +21,13 @@ install:
  - cabal sandbox add-source ./.cabal-sandbox/src/amazonka/core
  - cabal sandbox add-source ./.cabal-sandbox/src/amazonka/amazonka
  - cabal sandbox add-source ./.cabal-sandbox/src/amazonka/amazonka-ec2
- - if ! cabal install --enable-split-objs --enable-library-stripping --only-dependencies --ghc-options='-fllvm -static -threaded -rtsopts -eventlog -debug' ; then
+ - if ! cabal install --only-dependencies --ghc-options='-fllvm' ; then
      cat .cabal-sandbox/logs/*.log ;
      exit 1 ;
    fi
 
 script:
- - cabal install -v2 --enable-split-objs --enable-executable-stripping --enable-tests --enable-benchmarks --program-suffix=-$(cabal info .|head -n 1|cut -d' ' -f2|cut -d'-' -f2)-$(git log HEAD~1..HEAD --pretty=%h) --ghc-options='-fllvm -static -threaded -rtsopts -eventlog -debug'
+ - cabal install -v2 --enable-tests --enable-benchmarks --program-suffix=-$(cabal info .|head -n 1|cut -d' ' -f2|cut -d'-' -f2)-$(git log HEAD~1..HEAD --pretty=%h) --ghc-options='-fllvm'
  - cabal test
  - cabal check
  - cabal haddock
