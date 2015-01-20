@@ -19,7 +19,7 @@ install:
  - cabal sandbox add-source ./.cabal-sandbox/src/amazonka/amazonka
  - cabal sandbox add-source ./.cabal-sandbox/src/amazonka/amazonka-ec2
  - if ! cabal install --enable-split-objs --enable-library-stripping --only-dependencies --ghc-options='-fllvm -static -threaded -rtsopts -eventlog -debug' ; then
-     cat "$HOME"/.cabal/logs/*.log ;
+     cat .cabal-sandbox/logs/*.log ;
      exit 1 ;
    fi
 
