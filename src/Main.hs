@@ -1,6 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE TemplateHaskell #-}
 
 -- Module      : Rifactor.Plan
 -- Copyright   : (c) 2015 Knewton, Inc <se@knewton.com>
@@ -11,6 +12,10 @@
 -- Portability : non-portable (GHC extensions)
 
 import Control.Monad.Trans.AWS (Error)
+import Data.Time
+import Distribution.PackageDescription.TH
+import Git.Embed
+import Language.Haskell.TH
 import Options.Applicative
 import Rifactor.Plan
 import Rifactor.Types
@@ -35,12 +40,28 @@ planParserInfo =
         header "RIFactor plan" <>
         progDesc "Discover state, plan savings & print the plan")
 
+gitRev :: String
+gitRev = $(embedGitShortRevision)
+
+gitBranch :: String
+gitBranch = $(embedGitBranch)
+
+buildDate :: String
+buildDate =
+  $(stringE =<<
+    runIO (show `fmap` Data.Time.getCurrentTime))
+
+version :: String
+version = $(packageVariable (pkgVersion . package))
+
 mainParserInfo :: ParserInfo Options
 mainParserInfo =
   info (helper <*>
         subparser (command "plan" planParserInfo))
        (fullDesc <>
-        header "RIFactor" <>
+        header (("RIFactor: " ++ version) ++
+                (" Date: " ++ buildDate) ++
+                (" Git: " ++ gitRev ++ "@" ++ gitBranch)) <>
         progDesc "Optimize AWS Reserved Instances")
 
 exec opts@Plan{..} = plan opts
