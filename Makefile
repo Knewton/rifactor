@@ -11,11 +11,17 @@ default: .cabal-sandbox/bin/rifactor
 	@cabal sandbox add-source ../../dysinger/amazonka/amazonka
 	@cabal sandbox add-source ../../dysinger/amazonka/amazonka-ec2
 
-.cabal-sandbox/bin/rifactor: | .cabal-sandbox
-	@cabal install
+build: | .cabal-sandbox
+	@cabal install --enable-tests
+
+.cabal-sandbox/bin/rifactor: | build
+.cabal-sandbox/bin/test: | build
 
 doc:
 	@cabal haddock --hyperlink-source
+
+test: | .cabal-sandbox/bin/test
+	@cabal test
 
 clean:
 	@cabal clean
@@ -23,4 +29,4 @@ clean:
 distclean: clean
 	@rm -rf .cabal-sandbox dist
 
-.PHONY: default doc clean distclean
+.PHONY: default doc test clean distclean
