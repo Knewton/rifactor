@@ -24,3 +24,36 @@ AWS Reserved Instance Optimization
 ## Run
 
     rifactor --help
+
+## Config File (Required)
+
+```json
+{
+  "accounts": [
+    {
+      "access_key": "<<AWS_ACCESS_KEY_ID_HERE>>",
+      "secret_key": "<<AWS_SECRET_ACCESS_KEY_HERE>>",
+      "name": "dev"
+    },
+    {
+      "access_key": "<<AWS_ACCESS_KEY_ID_HERE>>",
+      "secret_key": "<<AWS_SECRET_ACCESS_KEY_HERE>>",
+      "name": "qa"
+    },
+    {
+      "access_key": "<<AWS_ACCESS_KEY_ID_HERE>>",
+      "secret_key": "<<AWS_SECRET_ACCESS_KEY_HERE>>",
+      "name": "stage"
+    },
+    {
+      "access_key": "<<AWS_ACCESS_KEY_ID_HERE>>",
+      "secret_key": "<<AWS_SECRET_ACCESS_KEY_HERE>>",
+      "name": "prod"
+    }
+  ],
+  "regions": [
+    "NorthCalifornia",
+    "NorthVirginia",
+    "Oregon"
+  ]
+}
