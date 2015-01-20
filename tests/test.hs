@@ -33,4 +33,4 @@ main =
                        ,testCase "List comparison (same length)" $
                         [1,2,3] `compare`
                         [1,2,2] @?=
-                        LT]]
+                        GT]]
