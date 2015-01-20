@@ -7,9 +7,6 @@ default: .cabal-sandbox/bin/rifactor
 
 .cabal-sandbox:
 	@cabal sandbox init
-	@cabal sandbox add-source ../../dysinger/amazonka/core
-	@cabal sandbox add-source ../../dysinger/amazonka/amazonka
-	@cabal sandbox add-source ../../dysinger/amazonka/amazonka-ec2
 
 build: | .cabal-sandbox
 	@cabal install --enable-tests
