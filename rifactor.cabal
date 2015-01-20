@@ -24,6 +24,7 @@ executable rifactor
                      , cabal-file-th        >=0.2
                      , conduit              >=1.2
                      , conduit-extra        >=1.1
+                     , criterion            >=1.0
                      , git-embed            >=0.1
                      , lens                 >=4.7
                      , monad-control        >=1.0
