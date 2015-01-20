@@ -19,10 +19,7 @@ install:
  - cabal sandbox add-source ./.cabal-sandbox/src/amazonka/core
  - cabal sandbox add-source ./.cabal-sandbox/src/amazonka/amazonka
  - cabal sandbox add-source ./.cabal-sandbox/src/amazonka/amazonka-ec2
- - if ! cabal install --only-dependencies ; then
-     cat .cabal-sandbox/logs/*.log ;
-     exit 1 ;
-   fi
+ - cabal install --enable-tests --enable-benchmarks --only-dependencies
 
 script:
  - cabal check
