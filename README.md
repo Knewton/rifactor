@@ -4,13 +4,23 @@ AWS Reserved Instance Optimization
 
 ## Prerequisites
 
-- GHC 7.10 RC1
-- cabal 1.22.x.x
+- GHC 7.10
+- cabal-install 1.22
 
 ## Build
 
-    cabal install
+[![Build Status](https://travis-ci.org/dysinger/rifactor.png)](https://travis-ci.org/dysinger/rifactor)
+
+    make
+
+## Test
+
+    make test
+
+## Install
+
+    install ./.cabal-install/bin/rifactor /usr/local/bin
 
 ## Run
 
-    ./.cabal-sandbox/bin/rifactor
+    rifactor --help
