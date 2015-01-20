@@ -1,7 +1,11 @@
 name:                rifactor
 version:             0.1.0.0
-synopsis:            AWS Reserved Instance Optimization
 homepage:            https://github.com/Knewton/rifactor
+synopsis:            AWS Reserved Instance Optimization
+description:         Watches over your AWS Reserved Instances making sure they
+                     get fully applied to any on-demand instances across all
+                     your Amazon accounts.
+category:            Network
 license:             Apache-2.0
 license-file:        LICENSE
 author:              Tim Dysinger
@@ -15,11 +19,11 @@ executable rifactor
   hs-source-dirs:      src
   main-is:             Main.hs
   ghc-options:         -Wall
-  build-depends:       aeson                >=0.8
+  build-depends:       base                 >=4.8 && <4.9
+                     , aeson                >=0.8
                      , amazonka             >=0.2.1
                      , amazonka-core        >=0.2.1
                      , amazonka-ec2         >=0.2.1
-                     , base                 >=4.8
                      , bytestring           >=0.10
                      , cabal-file-th        >=0.2
                      , conduit              >=1.2
@@ -43,11 +47,11 @@ library
   ghc-options:         -Wall
   exposed-modules:     Rifactor.Types
                      , Rifactor.Plan
-  build-depends:       aeson                >=0.8
+  build-depends:       base                 >=4.8 && <4.9
+                     , aeson                >=0.8
                      , amazonka             >=0.2.1
                      , amazonka-core        >=0.2.1
                      , amazonka-ec2         >=0.2.1
-                     , base                 >=4.8
                      , bytestring           >=0.10
                      , conduit              >=1.2
                      , conduit-extra        >=1.1
