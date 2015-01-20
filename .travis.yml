@@ -6,26 +6,26 @@ env:
 before_install:
  - travis_retry sudo add-apt-repository -y ppa:hvr/ghc
  - travis_retry sudo apt-get update
- - travis_retry sudo apt-get install cabal-install-$CABALVER ghc-$GHCVER
+ - travis_retry sudo apt-get install cabal-install-$CABALVER ghc-$GHCVER llvm
  - export PATH=/opt/ghc/$GHCVER/bin:/opt/cabal/$CABALVER/bin:$PATH
+ - export CABAL_FLAGS="--ghc-options='-fllvm -static -optc-static -enable-threads -rtsopts -eventLog -debug' --enable-split-objs --enable-executable-stripping --enable-library-stripping --enable-tests --enable-benchmarks --program-suffix='-'$(cabal info .|grep 'Versions installed'|cut -d' ' -f7)'-'$(git log HEAD~1..HEAD --pretty=%h) --require-sandbox"
 
 install:
  - cabal --version
  - echo "$(ghc --version) [$(ghc --print-project-git-commit-id 2> /dev/null || echo '?')]"
  - travis_retry cabal update
- - if ! cabal install --only-dependencies --enable-tests --enable-benchmarks ; then
+ - cabal sandbox init
+ - if ! cabal install $CABAL_FLAGS --only-dependencies ; then
      cat "$HOME"/.cabal/logs/*.log ;
      exit 1 ;
    fi
 
 script:
- - cabal configure --enable-tests --enable-benchmarks -v2
- - cabal build
+ - cabal configure $CABAL_FLAGS -v2
  - cabal test
  - cabal check
+ - cabal haddock
  - cabal sdist
-
-# The following scriptlet checks that the resulting source distribution can be built & installed
  - export SRC_TGZ=$(cabal info . | awk '{print $2 ".tar.gz";exit}') ;
    cd dist/;
    if [ -f "$SRC_TGZ" ]; then
@@ -34,3 +34,4 @@ script:
       echo "expected '$SRC_TGZ' not found";
       exit 1;
    fi
+ - cabal install
