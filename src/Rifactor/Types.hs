@@ -1,4 +1,5 @@
 {-# LANGUAGE TemplateHaskell #-}
+{-# OPTIONS_GHC -fwarn-auto-orphans #-}
 
 -- Module      : Rifactor.Types
 -- Copyright   : (c) 2015 Knewton, Inc <se@knewton.com>
@@ -11,10 +12,9 @@
 module Rifactor.Types where
 
 import Control.Lens (makeLenses)
-import Data.Aeson.TH (deriveJSON, defaultOptions, fieldLabelModifier)
-import Data.Char (toLower)
-import Rifactor.Types.Internal
+import Data.Aeson.TH (deriveJSON)
 import Network.AWS.Types
+import Rifactor.Types.Internal
 
 data Options =
   Plan {_configFile :: FilePath
