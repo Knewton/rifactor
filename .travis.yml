@@ -19,12 +19,12 @@ install:
  - cabal sandbox add-source ./.cabal-sandbox/src/amazonka/core
  - cabal sandbox add-source ./.cabal-sandbox/src/amazonka/amazonka
  - cabal sandbox add-source ./.cabal-sandbox/src/amazonka/amazonka-ec2
- - cabal install --only-dependencies --force-reinstalls
+ - cabal install -v2 --enable-tests --only-dependencies --force-reinstalls
 
 script:
- - cabal check
- - cabal install -v2 --program-suffix=-$(cabal info .|head -n 1|cut -d' ' -f2|cut -d'-' -f2)
+ - cabal build -v2 --enable-tests
  - cabal test
+ - cabal check
 #- cabal haddock
  - cabal sdist
 #- export SRC_TGZ=$(cabal info . | awk '{print $2 ".tar.gz";exit}') ;
