@@ -32,7 +32,6 @@ executable rifactor
                      , cabal-file-th
                      , conduit
                      , conduit-extra
-                     , criterion
                      , git-embed
                      , lens
                      , monad-control
@@ -75,10 +74,6 @@ test-suite test
   type:                exitcode-stdio-1.0
   build-depends:       base >=4.7 && <4.8
                      , tasty
-                     , tasty-ant-xml
-                     , tasty-golden
                      , tasty-hspec
-                     , tasty-hunit
                      , tasty-quickcheck
-                     , tasty-smallcheck
                      , rifactor

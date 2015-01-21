@@ -1,5 +1,4 @@
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE ExtendedDefaultRules #-}
 
 -- Module      : Rifactor.Plan
 -- Copyright   : (c) 2015 Knewton, Inc <se@knewton.com>
@@ -14,34 +13,18 @@ module Rifactor.Plan where
 import           Control.Applicative
 import           Control.Lens
 import           Control.Monad
-import           Control.Monad.Error hiding (Error)
-import           Control.Monad.IO.Class
 import           Control.Monad.Trans.AWS hiding (accessKey, secretKey)
-import           Control.Monad.Trans.Control
 import           Control.Monad.Trans.Resource
 import           Data.Aeson as A
-import qualified Data.Aeson.Parser as A
-import           Data.ByteString.Builder (Builder)
-import qualified Data.ByteString.Builder as B
 import qualified Data.ByteString.Char8 as B
 import           Data.Conduit
 import qualified Data.Conduit.Attoparsec as C
 import qualified Data.Conduit.Binary as C
-import qualified Data.Conduit.List as C
-import           Data.Maybe
-import           Data.Monoid
-import qualified Data.Text as T
-import qualified Data.Text.IO as T
-import           Data.Time.Clock.POSIX
-import           Data.UUID
 import           Data.UUID.V4
 import           Network.AWS.Data
 import           Network.AWS.EC2
-import           Network.AWS.Types
 import           Rifactor.Types
 import           System.IO
-
-default (Builder)
 
 plan :: Options -> IO ()
 plan opts =
