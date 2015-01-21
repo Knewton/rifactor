@@ -12,7 +12,7 @@ author:              Tim Dysinger
 maintainer:          tim@dysinger.net
 build-type:          Simple
 extra-source-files:  README.md
-cabal-version:              >=1.22
+cabal-version:       >=1.20
 
 source-repository head
   type:     git
