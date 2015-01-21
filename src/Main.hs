@@ -40,29 +40,26 @@ planParserInfo =
         header "RIFactor plan" <>
         progDesc "Discover state, plan savings & print the plan")
 
+version :: String
+version = $(packageVariable (pkgVersion . package))
+
 gitRev :: String
 gitRev = $(embedGitShortRevision)
-
-gitBranch :: String
-gitBranch = $(embedGitBranch)
 
 buildDate :: String
 buildDate =
   $(stringE =<<
     runIO (show `fmap` Data.Time.getCurrentTime))
 
-version :: String
-version = $(packageVariable (pkgVersion . package))
-
 mainParserInfo :: ParserInfo Options
 mainParserInfo =
   info (helper <*>
         subparser (command "plan" planParserInfo))
        (fullDesc <>
-        header ("RIFactor: AWS Reserved Instance Optimization") <>
-        progDesc (("Version:" ++ version) ++
-                  ("|Revision:" ++ gitRev) ++
-                  ("|Built:" ++ buildDate)))
+        header (("REFactor " ++ version) ++
+                (" | Source: " ++ gitRev) ++
+                (" | Built: " ++ buildDate)) <>
+        progDesc "Optimize AWS Reserved Instances")
 
 exec opts@Plan{..} = plan opts
 
