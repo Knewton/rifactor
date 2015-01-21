@@ -57,3 +57,29 @@ AWS Reserved Instance Optimization
     "Oregon"
   ]
 }
+```
+
+## IAM Permissions
+
+Create a new IAM.  Add a User Policy that allows for describing ec2
+resources & modifying reserved instances.
+
+"ec2-describe-and-modify-reserved-instance"
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": "ec2:Describe*",
+      "Resource": "*"
+    },
+    {
+      "Effect": "Allow",
+      "Action": "ec2:ModifyReservedInstances",
+      "Resource": "*"
+    }
+  ]
+}
+```
