@@ -59,10 +59,10 @@ mainParserInfo =
   info (helper <*>
         subparser (command "plan" planParserInfo))
        (fullDesc <>
-        header (("RIFactor: " ++ version) ++
-                (" Date: " ++ buildDate) ++
-                (" Git: " ++ gitRev ++ "@" ++ gitBranch)) <>
-        progDesc "Optimize AWS Reserved Instances")
+        header ("RIFactor: AWS Reserved Instance Optimization") <>
+        progDesc (("Version:" ++ version) ++
+                  ("|Revision:" ++ gitRev) ++
+                  ("|Built:" ++ buildDate)))
 
 exec opts@Plan{..} = plan opts
 
