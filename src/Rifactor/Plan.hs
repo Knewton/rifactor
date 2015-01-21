@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RankNTypes #-}
 
 -- Module      : Rifactor.Plan
 -- Copyright   : (c) 2015 Knewton, Inc <se@knewton.com>
@@ -39,37 +40,33 @@ plan opts =
             uuid <- nextRandom
             fetchData opts cfg lgr uuid
 
+credentials :: Account -> Credentials
 credentials account =
-  (FromKeys (AccessKey (B.pack (account ^. accessKey)))
-            (SecretKey (B.pack (account ^. secretKey))))
+  FromKeys (AccessKey (B.pack (account ^. accessKey)))
+           (SecretKey (B.pack (account ^. secretKey)))
 
-environments lgr reg account =
-  getEnv reg (credentials account) <&>
-  envLogger .~
-  lgr
+fetchData :: forall t t1. t -> Config -> Logger -> t1 -> IO ()
+fetchData _opts cfg lgr _uuid =
+  do envs <- zipWithM (\acc reg ->
+                         getEnv reg (credentials acc) <&>
+                         envLogger .~
+                         lgr)
+                      (cfg ^. accounts)
+                      (cfg ^. regions)
+     reservations <- mapEnvM envRunningReservations envs
+     let _instances =
+           foldl (\a x -> a ++ x ^. rInstances) [] reservations
+     _rinstances <- mapEnvM envReservedInstances envs
+     -- TODO total reserved  instances by offering type, network type, availability-zone
+     -- TODO total on-demand instances by offering type, network type, availability-zone
+     return ()
 
-fetchData opts cfg lgr uuid =
-  forM_ (cfg ^. regions)
-        (\reg ->
-           do envs <- mapM (environments lgr reg)
-                           (cfg ^. accounts)
-              putStrLn (T.unpack (toText reg) ++
-                        " for all accounts")
-              reservations <- allRunningReservations envs
-              let instances =
-                    (foldl (\a x -> a ++ x ^. rInstances) [] reservations)
-              rinst <- allReservedInstances envs
-              putStrLn ("\t" ++
-                        show (length rinst) ++
-                        " reserved instances")
-              mods <- allReservedInstancesModifications envs
-              putStrLn ("\t" ++
-                        show (length mods) ++
-                        " reserved instances modifications"))
-
-allRunningReservations envs =
+mapEnvM :: forall e a b.
+           Show e
+        => (b -> IO (Either e [a])) -> [b] -> IO [a]
+mapEnvM f envs =
   foldM (\acc env ->
-           do e <- envRunningReservations env
+           do e <- f env
               case e of
                 (Left err) ->
                   do print err
@@ -78,6 +75,7 @@ allRunningReservations envs =
         []
         envs
 
+envRunningReservations :: Env -> IO (Either Error [Reservation])
 envRunningReservations =
   flip runAWST
        (view dirReservations <$>
@@ -86,17 +84,7 @@ envRunningReservations =
                fValues .~
                [toText ISNRunning]]))
 
-allReservedInstances envs =
-  foldM (\acc env ->
-           do e <- envReservedInstances env
-              case e of
-                (Left err) ->
-                  do print err
-                     return acc
-                (Right xs) -> return (acc ++ xs))
-        []
-        envs
-
+envReservedInstances :: Env -> IO (Either Error [ReservedInstances])
 envReservedInstances =
   flip runAWST
        (view drirReservedInstances <$>
@@ -105,21 +93,12 @@ envReservedInstances =
                fValues .~
                [toText RISActive]]))
 
-allReservedInstancesModifications envs =
-  foldM (\acc env ->
-           do e <- envReservedInstancesModifications env
-              case e of
-                (Left err) ->
-                  do print err
-                     return acc
-                (Right xs) -> return (acc ++ xs))
-        []
-        envs
-
+envReservedInstancesModifications :: Env
+                                  -> IO (Either Error [ReservedInstancesModification])
 envReservedInstancesModifications =
   flip runAWST
        (view drimrReservedInstancesModifications <$>
-        send (describeReservedInstancesModifications))
+        send describeReservedInstancesModifications)
 
 {-
 
