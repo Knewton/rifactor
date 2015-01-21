@@ -15,16 +15,7 @@ main =
                        [testProperty "sort == sort . reverse" $
                         \list ->
                           sort (list :: [Int]) ==
-                          sort (reverse list)
-                       ,testProperty "Fermat's last theorem" $
-                        \x y z n ->
-                          (n :: Integer) >=
-                          3 ==>
-                          x ^
-                          n +
-                          y ^
-                          n /=
-                          (z ^ n :: Integer)]
+                          sort (reverse list)]
             ,testGroup "Unit tests"
                        [testCase "List comparison (different length)" $
                         [1,2,3] `compare`
