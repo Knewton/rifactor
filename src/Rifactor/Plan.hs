@@ -21,6 +21,7 @@ import           Control.Monad.Trans.Resource
 import qualified Data.Aeson as A
 import qualified Data.ByteString.Char8 as B
 import           Data.Conduit
+import           Data.Char (toLower)
 import qualified Data.Conduit.Attoparsec as C
 import qualified Data.Conduit.Binary as C
 import           Data.List (groupBy, sortBy)
@@ -65,6 +66,7 @@ fetchActiveReservedInstances :: [RIEnv] -> IO [RIEnv]
 fetchActiveReservedInstances =
   foldM (\a e ->
            do is <- activeReservedInstances e
+              -- TODO maybe we don't want lossy errs here during fetch? y mv to types
               case is of
                 Left err -> print err >> return a
                 Right xs ->
@@ -76,7 +78,7 @@ fetchRunningInstances :: [RIEnv] -> IO [RIEnv]
 fetchRunningInstances =
   foldM (\a e ->
            do is <- runningInstances e
-              -- TODO maybe we don't interpret the errs here during fetch?
+              -- TODO maybe we don't want lossy errs here during fetch? y mv to types
               case is of
                 Left err -> print err >> return a
                 Right xs ->
@@ -97,9 +99,11 @@ printReservedInstances es =
         (\g@(r:_) ->
            putStrLn (T.unpack (fromJust (r ^. ri1AvailabilityZone)) ++
                      "," ++
-                     show (fromJust (r ^. ri1InstanceType)) ++
+                     map toLower (show (fromJust (r ^. ri1InstanceType))) ++
                      ",reserved," ++
-                     show (foldl (+) 0 (mapMaybe (view ri1InstanceCount) g))))
+                     show (foldl (+) 0 (mapMaybe (view ri1InstanceCount) g)) ++
+                     "," ++
+                     show (fromJust (r ^. ri1End))))
 
 printRunningInstances :: [RIEnv] -> IO ()
 printRunningInstances es =
@@ -107,7 +111,7 @@ printRunningInstances es =
         (\g@(i:_) ->
            putStrLn (T.unpack (fromJust (i ^. i1Placement ^. pAvailabilityZone)) ++
                      "," ++
-                     show (i ^. i1InstanceType) ++
+                     map toLower (show (i ^. i1InstanceType)) ++
                      ",instance," ++
                      show (length g)))
 
@@ -124,6 +128,7 @@ similarInstances i0 i1 =
 
 comparingReservedInstances :: ReservedInstances -> ReservedInstances -> Ordering
 comparingReservedInstances a b =
+  comparing (view ri1End) a b <>
   comparing (view ri1InstanceType) a b <>
   comparing (view ri1AvailabilityZone) a b
 
