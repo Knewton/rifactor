@@ -13,27 +13,38 @@ module Rifactor.Types where
 
 import Control.Lens (makeLenses)
 import Data.Aeson.TH (deriveJSON)
-import Network.AWS.Types
-import Rifactor.Types.Internal
+import Network.AWS (Env)
+import Network.AWS.EC2.Types (ReservedInstances, Instance)
+import Network.AWS.Types (Region)
+import Rifactor.Types.Internal (deriveOptions)
 
 data Options =
   Plan {_configFile :: FilePath
        ,_logLevel :: String}
-
-data Config =
-  Config {_accounts :: [Account]
-         ,_regions :: [Region]}
 
 data Account =
   Account {_name :: String
           ,_accessKey :: String
           ,_secretKey :: String}
 
+data Config =
+  Config {_accounts :: [Account]
+         ,_regions :: [Region]}
+
+data RIEnv =
+  RIEnv {_reserved :: [ReservedInstances]
+        ,_instances :: [Instance]
+        ,_env :: Env}
+
+riEnv :: Env -> RIEnv
+riEnv = RIEnv [] []
+
 {- Lenses -}
 
 $(makeLenses ''Account)
 $(makeLenses ''Config)
 $(makeLenses ''Options)
+$(makeLenses ''RIEnv)
 
 {- JSON -}
 
