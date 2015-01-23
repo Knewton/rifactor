@@ -56,12 +56,16 @@ library
                      , amazonka-core
                      , amazonka-ec2
                      , bytestring
+                     , cabal-file-th
                      , conduit
                      , conduit-extra
+                     , git-embed
                      , lens
                      , monad-control
                      , mtl
+                     , optparse-applicative
                      , resourcet
+                     , template-haskell
                      , text
                      , time
                      , transformers
