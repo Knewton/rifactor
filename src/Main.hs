@@ -23,7 +23,7 @@ import Rifactor.Types
 planParserInfo :: ParserInfo Options
 planParserInfo =
   info (helper <*>
-        (Plan <$>
+        (PlanOptions <$>
          (option auto
                  (long "config-file" <>
                   short 'c' <>
@@ -61,6 +61,6 @@ mainParserInfo =
                 (" | Built: " ++ buildDate)) <>
         progDesc "Optimize AWS Reserved Instances")
 
-exec opts@Plan{..} = plan opts
+exec opts@PlanOptions{..} = plan opts
 
 main = exec =<< execParser mainParserInfo

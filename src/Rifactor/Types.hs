@@ -19,8 +19,8 @@ import Network.AWS.Types (Region)
 import Rifactor.Types.Internal (deriveOptions)
 
 data Options =
-  Plan {_configFile :: FilePath
-       ,_logLevel :: String}
+  PlanOptions {_configFile :: FilePath
+              ,_logLevel :: String}
 
 data Account =
   Account {_name :: String
