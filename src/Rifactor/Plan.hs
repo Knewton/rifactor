@@ -133,58 +133,72 @@ showPlan (UsedReserved _ r is) =
   show (length is) ++
   "," ++
   showMaybeNum (r ^. ri1InstanceCount)
-showPlan (UnmatchedInstance _ i) =
+showPlan (UnmatchedInstance i) =
   T.unpack (fromMaybe (T.pack "n/a") (i ^. i1Placement ^. pAvailabilityZone)) ++
   "," ++
-  show (i ^. i1InstanceType) ++
+  map toLower (show (i ^. i1InstanceType)) ++
+  "," ++
+  "instance (unmatched)" ++
   "," ++
   T.unpack (i ^. i1InstanceId)
 
 interpret :: [RIEnv] -> Plan
 interpret es =
-  let urs =
-        [UnmatchedReserved (e ^. env)
-                           r | e <- es
-                             , r <- e ^. reserved]
-      uis =
-        [UnmatchedInstance (e ^. env)
-                           i | e <- es
-                             , i <- e ^. instances]
-  in mkPlan urs uis []
+  let rs =
+        [((e ^. env),r) | e <- es
+                        , r <- e ^. reserved]
+      is =
+        [i | e <- es
+           , i <- e ^. instances]
+  in mkPlan rs is []
 
-mkPlan :: [Plan] -> [Plan] -> [Plan] -> Plan
-mkPlan [] uis ps = Plan (ps ++ uis)
-mkPlan urs [] ps = Plan (ps ++ urs)
-mkPlan (ur@(UnmatchedReserved e r):urs) uis ps =
-  case (partition (isMatch ur) uis) of
+mkPlan :: [(Env, ReservedInstances)] -> [Instance] -> [Plan] -> Plan
+mkPlan [] is ps =
+  Plan (ps ++
+        map UnmatchedInstance is)
+mkPlan rs [] ps =
+  Plan (ps ++
+        map (\r ->
+               UnmatchedReserved (r ^. _1)
+                                 (r ^. _2))
+            rs)
+mkPlan (r:rs) is ps =
+  case (partition (isMatch r)
+                  (is)) of
     ([],unmatched) ->
-      mkPlan urs
+      mkPlan rs
              unmatched
-             ((UnmatchedReserved e r) :
+             (UnmatchedReserved (r ^. _1)
+                                (r ^. _2) :
               ps)
     (matched,unmatched) ->
       let count =
-            fromMaybe 0 (r ^. ri1InstanceCount)
+            fromMaybe 0 (r ^. _2 ^. ri1InstanceCount)
           (used,unused) = splitAt count matched
-          used' =
-            map (\(UnmatchedInstance _ i) -> i) used
-          lengthUsed = length used'
+          lengthUsed = length used
       in if lengthUsed == 0
-            then mkPlan urs uis (ur : ps)
+            then mkPlan rs
+                        is
+                        (UnmatchedReserved (r ^. _1)
+                                           (r ^. _2) :
+                         ps)
             else if lengthUsed == count
-                    then mkPlan urs
+                    then mkPlan rs
                                 (unmatched ++ unused)
-                                (UsedReserved e r used' :
+                                (UsedReserved (r ^. _1)
+                                              (r ^. _2)
+                                              used :
                                  ps)
-                    else mkPlan urs
+                    else mkPlan rs
                                 (unmatched ++ unused)
-                                (PartialReserved e r used' :
+                                (PartialReserved (r ^. _1)
+                                                 (r ^. _2)
+                                                 used :
                                  ps)
-  where isMatch (UnmatchedReserved _ r') (UnmatchedInstance _ i) =
-          (r' ^. ri1InstanceType == i ^? i1InstanceType) &&
-          (r' ^. ri1AvailabilityZone == i ^. i1Placement ^. pAvailabilityZone)
-        isMatch _ _ = False
-mkPlan urs uis ps = Plan (ps ++ uis ++ urs)
+  where isMatch r' i =
+          (r' ^. _2 ^. ri1InstanceType == i ^? i1InstanceType) &&
+          (r' ^. _2 ^. ri1AvailabilityZone == i ^. i1Placement ^.
+                                              pAvailabilityZone)
 
 runningInstances :: RIEnv -> IO (Either Error [Reservation])
 runningInstances =

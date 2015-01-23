@@ -41,8 +41,7 @@ riEnv = RIEnv [] []
 
 data Plan
   = Plan { _pPlans :: [Plan] }
-  | UnmatchedInstance {_pEnv :: Env
-                      ,_pInstance :: Instance}
+  | UnmatchedInstance {_pInstance :: Instance}
   | UnmatchedReserved {_pEnv :: Env
                       ,_pReservedInstances :: ReservedInstances}
   | PartialReserved {_pEnv :: Env
