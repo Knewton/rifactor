@@ -15,10 +15,10 @@ install:
  - echo "$(ghc --version) [$(ghc --print-project-git-commit-id 2> /dev/null || echo '?')]"
  - travis_retry cabal update
  - cabal sandbox init
- - git clone --branch=develop --depth=1 git://github.com/dysinger/amazonka ./.cabal-sandbox/src/amazonka
- - cabal sandbox add-source ./.cabal-sandbox/src/amazonka/core
- - cabal sandbox add-source ./.cabal-sandbox/src/amazonka/amazonka
- - cabal sandbox add-source ./.cabal-sandbox/src/amazonka/amazonka-ec2
+#- git clone --branch=develop --depth=1 git://github.com/dysinger/amazonka ./.cabal-sandbox/src/amazonka
+#- cabal sandbox add-source ./.cabal-sandbox/src/amazonka/core
+#- cabal sandbox add-source ./.cabal-sandbox/src/amazonka/amazonka
+#- cabal sandbox add-source ./.cabal-sandbox/src/amazonka/amazonka-ec2
  - cabal install -v2 --only-dependencies --force-reinstalls --enable-tests --enable-benchmarks
 
 script:
