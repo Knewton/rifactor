@@ -16,7 +16,6 @@ module Rifactor.Plan where
 import           Control.Applicative
 import           Control.Lens
 import           Control.Monad
-import           Control.Monad.Error.Class (MonadError)
 import           Control.Monad.Trans.AWS hiding (accessKey, secretKey)
 import           Control.Monad.Trans.Resource
 import qualified Data.Aeson as A
@@ -25,10 +24,8 @@ import           Data.Conduit
 import           Data.Char (toLower)
 import qualified Data.Conduit.Attoparsec as C
 import qualified Data.Conduit.Binary as C
-import           Data.List (groupBy, sortBy, partition)
-import           Data.Maybe (fromJust, fromMaybe, mapMaybe)
-import           Data.Monoid ((<>))
-import           Data.Ord (comparing)
+import           Data.List (partition)
+import           Data.Maybe (fromMaybe)
 import qualified Data.Text as T
 import           Network.AWS.Data (toText)
 import           Network.AWS.EC2
@@ -88,15 +85,21 @@ fetchRunningInstances =
                           a))
         []
 
+showMaybeText :: Maybe T.Text -> String
 showMaybeText = T.unpack . fromMaybe (T.pack "n/a")
+
+showMaybeNum :: Maybe Int -> String
 showMaybeNum = show . fromMaybe 0
+
+showMaybeInstanceType :: forall a. Show a => Maybe a -> [Char]
 showMaybeInstanceType t =
   case t of
-    Just t -> map toLower (show t)
+    Just t' -> map toLower (show t')
     Nothing -> "n/a"
 
+showPlan :: Plan -> String
 showPlan (Plan ps) = unlines (map showPlan ps)
-showPlan (UnmatchedReserved e r) =
+showPlan (UnmatchedReserved _ r) =
   showMaybeText (r ^. ri1AvailabilityZone) ++
   "," ++
   showMaybeInstanceType (r ^. ri1InstanceType) ++
@@ -104,7 +107,7 @@ showPlan (UnmatchedReserved e r) =
   showMaybeText (r ^. ri1ReservedInstancesId) ++
   ",0," ++
   showMaybeNum (r ^. ri1InstanceCount)
-showPlan (PartialReserved e r is) =
+showPlan (PartialReserved _ r is) =
   showMaybeText (r ^. ri1AvailabilityZone) ++
   "," ++
   showMaybeInstanceType (r ^. ri1InstanceType) ++
@@ -114,7 +117,7 @@ showPlan (PartialReserved e r is) =
   show (length is) ++
   "," ++
   showMaybeNum (r ^. ri1InstanceCount)
-showPlan (UsedReserved e r is) =
+showPlan (UsedReserved _ r is) =
   showMaybeText (r ^. ri1AvailabilityZone) ++
   "," ++
   showMaybeInstanceType (r ^. ri1InstanceType) ++
@@ -124,13 +127,14 @@ showPlan (UsedReserved e r is) =
   show (length is) ++
   "," ++
   showMaybeNum (r ^. ri1InstanceCount)
-showPlan (UnmatchedInstance e i) =
+showPlan (UnmatchedInstance _ i) =
   T.unpack (fromMaybe (T.pack "n/a") (i ^. i1Placement ^. pAvailabilityZone)) ++
   "," ++
   show (i ^. i1InstanceType) ++
   "," ++
   T.unpack (i ^. i1InstanceId)
 
+interpret :: [RIEnv] -> Plan
 interpret es =
   let urs =
         [UnmatchedReserved (e ^. env)
@@ -142,6 +146,7 @@ interpret es =
                              , i <- e ^. instances]
   in compile urs uis []
 
+compile :: [Plan] -> [Plan] -> [Plan] -> Plan
 compile [] uis ps = Plan (ps ++ uis)
 compile urs [] ps = Plan (ps ++ urs)
 compile (ur@(UnmatchedReserved e r):urs) uis ps =
@@ -157,21 +162,21 @@ compile (ur@(UnmatchedReserved e r):urs) uis ps =
           (used,unused) = splitAt count matched
           used' =
             map (\(UnmatchedInstance _ i) -> i) used
-      in case length used' of
-           0 -> compile urs uis (ur : ps)
-           count ->
-             compile urs
-                     (unmatched ++ unused)
-                     (UsedReserved e r used' :
-                      ps)
-           _ ->
-             compile urs
-                     (unmatched ++ unused)
-                     (PartialReserved e r used' :
-                      ps)
-  where isMatch (UnmatchedReserved _ r) (UnmatchedInstance _ i) =
-          (r ^. ri1InstanceType == i ^? i1InstanceType) &&
-          (r ^. ri1AvailabilityZone == i ^. i1Placement ^. pAvailabilityZone)
+          lengthUsed = length used'
+      in if lengthUsed == 0
+            then compile urs uis (ur : ps)
+            else if lengthUsed == count
+                    then compile urs
+                                 (unmatched ++ unused)
+                                 (UsedReserved e r used' :
+                                  ps)
+                    else compile urs
+                                 (unmatched ++ unused)
+                                 (PartialReserved e r used' :
+                                  ps)
+  where isMatch (UnmatchedReserved _ r') (UnmatchedInstance _ i) =
+          (r' ^. ri1InstanceType == i ^? i1InstanceType) &&
+          (r' ^. ri1AvailabilityZone == i ^. i1Placement ^. pAvailabilityZone)
         isMatch _ _ = False
 compile urs uis ps = Plan (ps ++ uis ++ urs)
 

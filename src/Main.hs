@@ -11,7 +11,6 @@
 -- Stability   : experimental
 -- Portability : non-portable (GHC extensions)
 
-import Control.Monad.Trans.AWS (Error)
 import Data.Time
 import Distribution.PackageDescription.TH
 import Git.Embed
@@ -61,6 +60,8 @@ mainParserInfo =
                 (" | Built: " ++ buildDate)) <>
         progDesc "Optimize AWS Reserved Instances")
 
+exec :: Options -> IO ()
 exec opts@PlanOptions{..} = plan opts
 
+main :: IO ()
 main = exec =<< execParser mainParserInfo
