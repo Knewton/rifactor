@@ -45,7 +45,7 @@ plan opts =
                     fetchActiveReservedInstances =<<
                     initEnvs cfg =<<
                     newLogger Info stdout
-            putStrLn (unlines (map showPlan (interpret envs)))
+            putStrLn (unlines (map showResource (interpret envs)))
 
 initEnvs :: Config -> Logger -> IO [RIEnv]
 initEnvs cfg lgr =
@@ -85,7 +85,7 @@ fetchRunningInstances =
                           a))
         []
 
-interpret :: [RIEnv] -> [Plan]
+interpret :: [RIEnv] -> [Resource]
 interpret es =
   let rs =
         [((e ^. env),r) | e <- es
@@ -93,51 +93,58 @@ interpret es =
       is =
         [i | e <- es
            , i <- e ^. instances]
-  in mkPlan rs is []
+  in mkResource rs is []
 
-mkPlan :: [(Env, ReservedInstances)] -> [Instance] -> [Plan] -> [Plan]
-mkPlan [] is ps =
+mkResource :: [(Env,ReservedInstances)]
+           -> [Instance]
+           -> [Resource]
+           -> [Resource]
+mkResource [] is ps =
   (ps ++
-        map UnmatchedInstance is)
-mkPlan rs [] ps =
+   map UnmatchedInstance is)
+mkResource rs [] ps =
   (ps ++
-        map (\r ->
-               UnmatchedReserved (r ^. _1)
-                                 (r ^. _2))
-            rs)
-mkPlan (r:rs) is ps =
+   map (\r ->
+          UnmatchedReserved (r ^. _1)
+                            (r ^. _2))
+       rs)
+mkResource (r:rs) is ps =
   case (partition (isMatch r)
                   (is)) of
     ([],unmatched) ->
-      mkPlan rs
-             unmatched
-             (UnmatchedReserved (r ^. _1)
-                                (r ^. _2) :
-              ps)
+      mkResource
+        rs
+        unmatched
+        (UnmatchedReserved (r ^. _1)
+                           (r ^. _2) :
+         ps)
     (matched,unmatched) ->
       let count =
             fromMaybe 0 (r ^. _2 ^. ri1InstanceCount)
           (used,unused) = splitAt count matched
           lengthUsed = length used
       in if lengthUsed == 0
-            then mkPlan rs
-                        is
-                        (UnmatchedReserved (r ^. _1)
-                                           (r ^. _2) :
-                         ps)
+            then mkResource
+                   rs
+                   is
+                   (UnmatchedReserved (r ^. _1)
+                                      (r ^. _2) :
+                    ps)
             else if lengthUsed == count
-                    then mkPlan rs
-                                (unmatched ++ unused)
-                                (UsedReserved (r ^. _1)
-                                              (r ^. _2)
-                                              used :
-                                 ps)
-                    else mkPlan rs
-                                (unmatched ++ unused)
-                                (PartialReserved (r ^. _1)
-                                                 (r ^. _2)
-                                                 used :
-                                 ps)
+                    then mkResource
+                           rs
+                           (unmatched ++ unused)
+                           (UsedReserved (r ^. _1)
+                                         (r ^. _2)
+                                         used :
+                            ps)
+                    else mkResource
+                           rs
+                           (unmatched ++ unused)
+                           (PartialReserved (r ^. _1)
+                                            (r ^. _2)
+                                            used :
+                            ps)
   where isMatch r' i =
           (r' ^. _2 ^. ri1InstanceType == i ^? i1InstanceType) &&
           (r' ^. _2 ^. ri1AvailabilityZone == i ^. i1Placement ^.
@@ -183,8 +190,8 @@ showMaybeInstanceType t =
     Just t' -> map toLower (show t')
     Nothing -> "n/a"
 
-showPlan :: Plan -> String
-showPlan (UnmatchedReserved _ r) =
+showResource :: Resource -> String
+showResource (UnmatchedReserved _ r) =
   showMaybeText (r ^. ri1AvailabilityZone) ++
   "," ++
   showMaybeInstanceType (r ^. ri1InstanceType) ++
@@ -194,7 +201,7 @@ showPlan (UnmatchedReserved _ r) =
   showMaybeText (r ^. ri1ReservedInstancesId) ++
   ",0," ++
   showMaybeNum (r ^. ri1InstanceCount)
-showPlan (PartialReserved _ r is) =
+showResource (PartialReserved _ r is) =
   showMaybeText (r ^. ri1AvailabilityZone) ++
   "," ++
   showMaybeInstanceType (r ^. ri1InstanceType) ++
@@ -206,7 +213,7 @@ showPlan (PartialReserved _ r is) =
   show (length is) ++
   "," ++
   showMaybeNum (r ^. ri1InstanceCount)
-showPlan (UsedReserved _ r is) =
+showResource (UsedReserved _ r is) =
   showMaybeText (r ^. ri1AvailabilityZone) ++
   "," ++
   showMaybeInstanceType (r ^. ri1InstanceType) ++
@@ -218,8 +225,9 @@ showPlan (UsedReserved _ r is) =
   show (length is) ++
   "," ++
   showMaybeNum (r ^. ri1InstanceCount)
-showPlan (UnmatchedInstance i) =
-  T.unpack (fromMaybe (T.pack "n/a") (i ^. i1Placement ^. pAvailabilityZone)) ++
+showResource (UnmatchedInstance i) =
+  T.unpack (fromMaybe (T.pack "n/a")
+                      (i ^. i1Placement ^. pAvailabilityZone)) ++
   "," ++
   map toLower (show (i ^. i1InstanceType)) ++
   "," ++

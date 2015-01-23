@@ -39,23 +39,23 @@ data RIEnv =
 riEnv :: Env -> RIEnv
 riEnv = RIEnv [] []
 
-data Plan
-  = UnmatchedInstance {_pInstance :: Instance}
-  | UnmatchedReserved {_pEnv :: Env
-                      ,_pReservedInstances :: ReservedInstances}
-  | PartialReserved {_pEnv :: Env
-                    ,_pReservedInstances :: ReservedInstances
-                    ,_pInstances :: [Instance]}
-  | UsedReserved {_pEnv :: Env
-                 ,_pReservedInstances :: ReservedInstances
-                 ,_pInstances :: [Instance]}
+data Resource
+  = UnmatchedInstance {_uiInstance :: Instance}
+  | UnmatchedReserved {_urEnv :: Env
+                      ,_urReservedInstances :: ReservedInstances}
+  | PartialReserved {_prEnv :: Env
+                    ,_prReservedInstances :: ReservedInstances
+                    ,_prInstances :: [Instance]}
+  | UsedReserved {_urEnv :: Env
+                 ,_urReservedInstances :: ReservedInstances
+                 ,_urInstances :: [Instance]}
 
 {- Lenses -}
 
 $(makeLenses ''Account)
 $(makeLenses ''Config)
 $(makeLenses ''Options)
-$(makeLenses ''Plan)
+$(makeLenses ''Resource)
 $(makeLenses ''RIEnv)
 
 
