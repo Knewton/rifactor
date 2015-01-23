@@ -4,6 +4,8 @@ AWS Reserved Instance Optimization
 
 ## Build
 
+You need GHC 7.8.x & cabal-install 1.22 (homebrew or PPA will work). Take
+a peek at the .travis.yml file at the root of the project for build steps.
 
 ## Run
 
