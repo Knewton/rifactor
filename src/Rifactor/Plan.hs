@@ -45,7 +45,7 @@ plan opts =
                     fetchActiveReservedInstances =<<
                     initEnvs cfg =<<
                     newLogger Info stdout
-            putStrLn (showPlan (interpret envs))
+            putStrLn (unlines (map showPlan (interpret envs)))
 
 initEnvs :: Config -> Logger -> IO [RIEnv]
 initEnvs cfg lgr =
@@ -85,7 +85,7 @@ fetchRunningInstances =
                           a))
         []
 
-interpret :: [RIEnv] -> Plan
+interpret :: [RIEnv] -> [Plan]
 interpret es =
   let rs =
         [((e ^. env),r) | e <- es
@@ -95,12 +95,12 @@ interpret es =
            , i <- e ^. instances]
   in mkPlan rs is []
 
-mkPlan :: [(Env, ReservedInstances)] -> [Instance] -> [Plan] -> Plan
+mkPlan :: [(Env, ReservedInstances)] -> [Instance] -> [Plan] -> [Plan]
 mkPlan [] is ps =
-  Plan (ps ++
+  (ps ++
         map UnmatchedInstance is)
 mkPlan rs [] ps =
-  Plan (ps ++
+  (ps ++
         map (\r ->
                UnmatchedReserved (r ^. _1)
                                  (r ^. _2))
@@ -184,7 +184,6 @@ showMaybeInstanceType t =
     Nothing -> "n/a"
 
 showPlan :: Plan -> String
-showPlan (Plan ps) = unlines (map showPlan ps)
 showPlan (UnmatchedReserved _ r) =
   showMaybeText (r ^. ri1AvailabilityZone) ++
   "," ++
