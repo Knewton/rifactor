@@ -104,6 +104,8 @@ showPlan (UnmatchedReserved _ r) =
   "," ++
   showMaybeInstanceType (r ^. ri1InstanceType) ++
   "," ++
+  "reserved-instances (unmatched)" ++
+  "," ++
   showMaybeText (r ^. ri1ReservedInstancesId) ++
   ",0," ++
   showMaybeNum (r ^. ri1InstanceCount)
@@ -111,6 +113,8 @@ showPlan (PartialReserved _ r is) =
   showMaybeText (r ^. ri1AvailabilityZone) ++
   "," ++
   showMaybeInstanceType (r ^. ri1InstanceType) ++
+  "," ++
+  "reserved-instances (partial)" ++
   "," ++
   showMaybeText (r ^. ri1ReservedInstancesId) ++
   "," ++
@@ -121,6 +125,8 @@ showPlan (UsedReserved _ r is) =
   showMaybeText (r ^. ri1AvailabilityZone) ++
   "," ++
   showMaybeInstanceType (r ^. ri1InstanceType) ++
+  "," ++
+  "reserved-instances (used)" ++
   "," ++
   showMaybeText (r ^. ri1ReservedInstancesId) ++
   "," ++
