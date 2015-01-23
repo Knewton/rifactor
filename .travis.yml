@@ -22,8 +22,7 @@ install:
  - cabal install -v2 --only-dependencies --force-reinstalls --enable-tests --enable-benchmarks
 
 script:
- - cabal configure -v2 --enable-tests --enable-benchmarks
- - cabal build -v2
+ - cabal install -v2 --enable-tests --enable-benchmarks
  - cabal test
  - cabal check
 #- cabal haddock
