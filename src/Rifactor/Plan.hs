@@ -144,18 +144,18 @@ interpret es =
         [UnmatchedInstance (e ^. env)
                            i | e <- es
                              , i <- e ^. instances]
-  in compile urs uis []
+  in mkPlan urs uis []
 
-compile :: [Plan] -> [Plan] -> [Plan] -> Plan
-compile [] uis ps = Plan (ps ++ uis)
-compile urs [] ps = Plan (ps ++ urs)
-compile (ur@(UnmatchedReserved e r):urs) uis ps =
+mkPlan :: [Plan] -> [Plan] -> [Plan] -> Plan
+mkPlan [] uis ps = Plan (ps ++ uis)
+mkPlan urs [] ps = Plan (ps ++ urs)
+mkPlan (ur@(UnmatchedReserved e r):urs) uis ps =
   case (partition (isMatch ur) uis) of
     ([],unmatched) ->
-      compile urs
-              unmatched
-              ((UnmatchedReserved e r) :
-               ps)
+      mkPlan urs
+             unmatched
+             ((UnmatchedReserved e r) :
+              ps)
     (matched,unmatched) ->
       let count =
             fromMaybe 0 (r ^. ri1InstanceCount)
@@ -164,21 +164,21 @@ compile (ur@(UnmatchedReserved e r):urs) uis ps =
             map (\(UnmatchedInstance _ i) -> i) used
           lengthUsed = length used'
       in if lengthUsed == 0
-            then compile urs uis (ur : ps)
+            then mkPlan urs uis (ur : ps)
             else if lengthUsed == count
-                    then compile urs
-                                 (unmatched ++ unused)
-                                 (UsedReserved e r used' :
-                                  ps)
-                    else compile urs
-                                 (unmatched ++ unused)
-                                 (PartialReserved e r used' :
-                                  ps)
+                    then mkPlan urs
+                                (unmatched ++ unused)
+                                (UsedReserved e r used' :
+                                 ps)
+                    else mkPlan urs
+                                (unmatched ++ unused)
+                                (PartialReserved e r used' :
+                                 ps)
   where isMatch (UnmatchedReserved _ r') (UnmatchedInstance _ i) =
           (r' ^. ri1InstanceType == i ^? i1InstanceType) &&
           (r' ^. ri1AvailabilityZone == i ^. i1Placement ^. pAvailabilityZone)
         isMatch _ _ = False
-compile urs uis ps = Plan (ps ++ uis ++ urs)
+mkPlan urs uis ps = Plan (ps ++ uis ++ urs)
 
 runningInstances :: RIEnv -> IO (Either Error [Reservation])
 runningInstances =
