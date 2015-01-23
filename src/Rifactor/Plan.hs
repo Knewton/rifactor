@@ -85,63 +85,6 @@ fetchRunningInstances =
                           a))
         []
 
-showMaybeText :: Maybe T.Text -> String
-showMaybeText = T.unpack . fromMaybe (T.pack "n/a")
-
-showMaybeNum :: Maybe Int -> String
-showMaybeNum = show . fromMaybe 0
-
-showMaybeInstanceType :: forall a. Show a => Maybe a -> [Char]
-showMaybeInstanceType t =
-  case t of
-    Just t' -> map toLower (show t')
-    Nothing -> "n/a"
-
-showPlan :: Plan -> String
-showPlan (Plan ps) = unlines (map showPlan ps)
-showPlan (UnmatchedReserved _ r) =
-  showMaybeText (r ^. ri1AvailabilityZone) ++
-  "," ++
-  showMaybeInstanceType (r ^. ri1InstanceType) ++
-  "," ++
-  "reserved-instances (unmatched)" ++
-  "," ++
-  showMaybeText (r ^. ri1ReservedInstancesId) ++
-  ",0," ++
-  showMaybeNum (r ^. ri1InstanceCount)
-showPlan (PartialReserved _ r is) =
-  showMaybeText (r ^. ri1AvailabilityZone) ++
-  "," ++
-  showMaybeInstanceType (r ^. ri1InstanceType) ++
-  "," ++
-  "reserved-instances (partial)" ++
-  "," ++
-  showMaybeText (r ^. ri1ReservedInstancesId) ++
-  "," ++
-  show (length is) ++
-  "," ++
-  showMaybeNum (r ^. ri1InstanceCount)
-showPlan (UsedReserved _ r is) =
-  showMaybeText (r ^. ri1AvailabilityZone) ++
-  "," ++
-  showMaybeInstanceType (r ^. ri1InstanceType) ++
-  "," ++
-  "reserved-instances (used)" ++
-  "," ++
-  showMaybeText (r ^. ri1ReservedInstancesId) ++
-  "," ++
-  show (length is) ++
-  "," ++
-  showMaybeNum (r ^. ri1InstanceCount)
-showPlan (UnmatchedInstance i) =
-  T.unpack (fromMaybe (T.pack "n/a") (i ^. i1Placement ^. pAvailabilityZone)) ++
-  "," ++
-  map toLower (show (i ^. i1InstanceType)) ++
-  "," ++
-  "instance (unmatched)" ++
-  "," ++
-  T.unpack (i ^. i1InstanceId)
-
 interpret :: [RIEnv] -> Plan
 interpret es =
   let rs =
@@ -227,3 +170,60 @@ reservedInstancesModifications =
        (view drimrReservedInstancesModifications <$>
         send describeReservedInstancesModifications) .
   view env
+
+showMaybeText :: Maybe T.Text -> String
+showMaybeText = T.unpack . fromMaybe (T.pack "n/a")
+
+showMaybeNum :: Maybe Int -> String
+showMaybeNum = show . fromMaybe 0
+
+showMaybeInstanceType :: forall a. Show a => Maybe a -> [Char]
+showMaybeInstanceType t =
+  case t of
+    Just t' -> map toLower (show t')
+    Nothing -> "n/a"
+
+showPlan :: Plan -> String
+showPlan (Plan ps) = unlines (map showPlan ps)
+showPlan (UnmatchedReserved _ r) =
+  showMaybeText (r ^. ri1AvailabilityZone) ++
+  "," ++
+  showMaybeInstanceType (r ^. ri1InstanceType) ++
+  "," ++
+  "reserved-instances (unmatched)" ++
+  "," ++
+  showMaybeText (r ^. ri1ReservedInstancesId) ++
+  ",0," ++
+  showMaybeNum (r ^. ri1InstanceCount)
+showPlan (PartialReserved _ r is) =
+  showMaybeText (r ^. ri1AvailabilityZone) ++
+  "," ++
+  showMaybeInstanceType (r ^. ri1InstanceType) ++
+  "," ++
+  "reserved-instances (partial)" ++
+  "," ++
+  showMaybeText (r ^. ri1ReservedInstancesId) ++
+  "," ++
+  show (length is) ++
+  "," ++
+  showMaybeNum (r ^. ri1InstanceCount)
+showPlan (UsedReserved _ r is) =
+  showMaybeText (r ^. ri1AvailabilityZone) ++
+  "," ++
+  showMaybeInstanceType (r ^. ri1InstanceType) ++
+  "," ++
+  "reserved-instances (used)" ++
+  "," ++
+  showMaybeText (r ^. ri1ReservedInstancesId) ++
+  "," ++
+  show (length is) ++
+  "," ++
+  showMaybeNum (r ^. ri1InstanceCount)
+showPlan (UnmatchedInstance i) =
+  T.unpack (fromMaybe (T.pack "n/a") (i ^. i1Placement ^. pAvailabilityZone)) ++
+  "," ++
+  map toLower (show (i ^. i1InstanceType)) ++
+  "," ++
+  "instance (unmatched)" ++
+  "," ++
+  T.unpack (i ^. i1InstanceId)
