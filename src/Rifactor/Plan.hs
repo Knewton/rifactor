@@ -1,3 +1,4 @@
+{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
@@ -24,8 +25,8 @@ import           Data.Conduit
 import           Data.Char (toLower)
 import qualified Data.Conduit.Attoparsec as C
 import qualified Data.Conduit.Binary as C
-import           Data.List (groupBy, sortBy)
-import           Data.Maybe (fromJust, mapMaybe)
+import           Data.List (groupBy, sortBy, partition)
+import           Data.Maybe (fromJust, fromMaybe, mapMaybe)
 import           Data.Monoid ((<>))
 import           Data.Ord (comparing)
 import qualified Data.Text as T
@@ -43,11 +44,11 @@ plan opts =
        (A.Error err) ->
          putStrLn ("Config File Error: " ++ err)
        (A.Success cfg) ->
-         newLogger Info stdout >>=
-         initEnvs cfg >>=
-         fetchActiveReservedInstances >>=
-         fetchRunningInstances >>=
-         printPlan
+         do envs <- fetchRunningInstances =<<
+                    fetchActiveReservedInstances =<<
+                    initEnvs cfg =<<
+                    newLogger Info stdout
+            putStrLn (showPlan (interpret envs))
 
 initEnvs :: Config -> Logger -> IO [RIEnv]
 initEnvs cfg lgr =
@@ -87,69 +88,105 @@ fetchRunningInstances =
                           a))
         []
 
-printPlan :: [RIEnv] -> IO ()
-printPlan es =
-  do printReservedInstances es
-     printRunningInstances es
+data Plan
+  = Plan [Plan]
+  | UnmatchedInstance Env
+                      Instance
+  | UnmatchedReserved Env
+                      ReservedInstances
+  | PartialReserved Env
+                    ReservedInstances
+                    [Instance]
+  | UsedReserved Env
+                 ReservedInstances
+                 [Instance]
 
-printReservedInstances :: [RIEnv] -> IO ()
-printReservedInstances es =
-  forM_ (groupBy similarReservedInstances
-                 (sortBy comparingReservedInstances (concatMap (view reserved) es)))
-        (\g@(r:_) ->
-           putStrLn (T.unpack (fromJust (r ^. ri1AvailabilityZone)) ++
-                     "," ++
-                     map toLower (show (fromJust (r ^. ri1InstanceType))) ++
-                     ",reserved," ++
-                     show (foldl (+) 0 (mapMaybe (view ri1InstanceCount) g)) ++
-                     "," ++
-                     show (fromJust (r ^. ri1End))))
+showMaybeText = T.unpack . fromMaybe (T.pack "n/a")
+showMaybeNum = show . fromMaybe 0
+showMaybeInstanceType t =
+  case t of
+    Just t -> map toLower (show t)
+    Nothing -> "n/a"
 
-printRunningInstances :: [RIEnv] -> IO ()
-printRunningInstances es =
-  forM_ (groupBy similarInstances (sortBy comparingInstances (concatMap (view instances) es)))
-        (\g@(i:_) ->
-           putStrLn (T.unpack (fromJust (i ^. i1Placement ^. pAvailabilityZone)) ++
-                     "," ++
-                     map toLower (show (i ^. i1InstanceType)) ++
-                     ",instance," ++
-                     show (length g)))
+showPlan (Plan ps) = unlines (map showPlan ps)
+showPlan (UnmatchedReserved e r) =
+  showMaybeText (r ^. ri1AvailabilityZone) ++
+  "," ++
+  showMaybeInstanceType (r ^. ri1InstanceType) ++
+  "," ++
+  showMaybeText (r ^. ri1ReservedInstancesId) ++
+  ",0," ++
+  showMaybeNum (r ^. ri1InstanceCount)
+showPlan (PartialReserved e r is) =
+  showMaybeText (r ^. ri1AvailabilityZone) ++
+  "," ++
+  showMaybeInstanceType (r ^. ri1InstanceType) ++
+  "," ++
+  showMaybeText (r ^. ri1ReservedInstancesId) ++
+  "," ++
+  show (length is) ++
+  "," ++
+  showMaybeNum (r ^. ri1InstanceCount)
+showPlan (UsedReserved e r is) =
+  showMaybeText (r ^. ri1AvailabilityZone) ++
+  "," ++
+  showMaybeInstanceType (r ^. ri1InstanceType) ++
+  "," ++
+  showMaybeText (r ^. ri1ReservedInstancesId) ++
+  "," ++
+  show (length is) ++
+  "," ++
+  showMaybeNum (r ^. ri1InstanceCount)
+showPlan (UnmatchedInstance e i) =
+  T.unpack (fromMaybe (T.pack "n/a") (i ^. i1Placement ^. pAvailabilityZone)) ++
+  "," ++
+  show (i ^. i1InstanceType) ++
+  "," ++
+  T.unpack (i ^. i1InstanceId)
 
-similarReservedInstances :: ReservedInstances -> ReservedInstances -> Bool
-similarReservedInstances ri0 ri1 =
-  (ri0 ^. ri1InstanceType == ri1 ^. ri1InstanceType) &&
-  (ri0 ^. ri1AvailabilityZone == ri1 ^. ri1AvailabilityZone)
+interpret es =
+  let urs =
+        [UnmatchedReserved (e ^. env)
+                           r | e <- es
+                             , r <- e ^. reserved]
+      uis =
+        [UnmatchedInstance (e ^. env)
+                           i | e <- es
+                             , i <- e ^. instances]
+  in compile urs uis []
 
-similarInstances :: Instance -> Instance -> Bool
-similarInstances i0 i1 =
-  (i0 ^. i1InstanceType == i1 ^. i1InstanceType) &&
-  ((i0 ^. i1Placement ^. pAvailabilityZone) ==
-   (i1 ^. i1Placement ^. pAvailabilityZone))
-
-comparingReservedInstances :: ReservedInstances -> ReservedInstances -> Ordering
-comparingReservedInstances a b =
-  comparing (view ri1End) a b <>
-  comparing (view ri1InstanceType) a b <>
-  comparing (view ri1AvailabilityZone) a b
-
-comparingInstances :: Instance -> Instance -> Ordering
-comparingInstances a b =
-  comparing (view i1InstanceType) a b <>
-  comparing (view pAvailabilityZone . view i1Placement) a b
-
-mapEnvM :: forall e a b.
-           Show e
-        => (b -> IO (Either e [a])) -> [b] -> IO [a]
-mapEnvM f envs =
-  foldM (\acc env' ->
-           do e <- f env'
-              case e of
-                (Left err) ->
-                  do print err
-                     return acc
-                (Right xs) -> return (acc ++ xs))
-        []
-        envs
+compile [] uis ps = Plan (ps ++ uis)
+compile urs [] ps = Plan (ps ++ urs)
+compile (ur@(UnmatchedReserved e r):urs) uis ps =
+  case (partition (isMatch ur) uis) of
+    ([],unmatched) ->
+      compile urs
+              unmatched
+              ((UnmatchedReserved e r) :
+               ps)
+    (matched,unmatched) ->
+      let count =
+            fromMaybe 0 (r ^. ri1InstanceCount)
+          (used,unused) = splitAt count matched
+          used' =
+            map (\(UnmatchedInstance _ i) -> i) used
+      in case length used' of
+           0 -> compile urs uis (ur : ps)
+           count ->
+             compile urs
+                     (unmatched ++ unused)
+                     (UsedReserved e r used' :
+                      ps)
+           _ ->
+             compile urs
+                     (unmatched ++ unused)
+                     (PartialReserved e r used' :
+                      ps)
+  where isMatch (UnmatchedReserved _ r) (UnmatchedInstance _ i) =
+          (r ^. ri1InstanceType == i ^? i1InstanceType) &&
+          (r ^. ri1AvailabilityZone == i ^. i1Placement ^. pAvailabilityZone)
+        isMatch _ _ = False
+compile urs uis ps = Plan (ps ++ uis ++ urs)
 
 runningInstances :: RIEnv -> IO (Either Error [Reservation])
 runningInstances =
