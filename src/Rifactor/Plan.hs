@@ -20,10 +20,11 @@ import           Control.Monad.Trans.AWS hiding (accessKey, secretKey)
 import           Control.Monad.Trans.Resource
 import qualified Data.Aeson as A
 import qualified Data.ByteString.Char8 as B
-import           Data.Conduit
 import           Data.Char (toLower)
-import qualified Data.Conduit.Attoparsec as C
-import qualified Data.Conduit.Binary as C
+import           Data.Conduit
+import qualified Data.Conduit.Attoparsec as C (sinkParser)
+import qualified Data.Conduit.Binary as C (sourceFile)
+import qualified Data.Conduit.List as C
 import           Data.List (partition)
 import           Data.Maybe (fromMaybe)
 import qualified Data.Text as T
@@ -46,6 +47,45 @@ plan opts =
                     initEnvs cfg =<<
                     newLogger Info stdout
             putStrLn (unlines (map showResource (interpret envs)))
+
+printReservedInstanceModifications :: Config -> IO ()
+printReservedInstanceModifications cfg =
+  do lgr <- newLogger Info stdout
+     forM_ [(a,r) | r <- (cfg ^. regions)
+                  , a <- (cfg ^. accounts)]
+           (\(a,r) ->
+              do env' <- getEnv r
+                                (FromKeys (AccessKey (B.pack (a ^. accessKey)))
+                                          (SecretKey (B.pack (a ^. secretKey)))) <&>
+                         (envLogger .~ lgr)
+                 runAWST env'
+                         (paginate (describeReservedInstancesModifications) =$
+                          C.concatMap (view drimrReservedInstancesModifications) $$
+                          C.mapM_ (info .
+                                   (\rim ->
+                                      T.concat ([T.pack (case (rim ^.
+                                                               rimCreateDate) of
+                                                           Just t -> show t
+                                                           Nothing -> "n/a")
+                                                ,T.pack ","
+                                                ,(fromMaybe T.empty
+                                                            (rim ^. rimStatus))
+                                                ,T.pack ","
+                                                ,(fromMaybe T.empty
+                                                            (rim ^.
+                                                             rimStatusMessage))
+                                                ,T.pack ","
+                                                ,fromMaybe T.empty
+                                                           (rim ^.
+                                                            rimReservedInstancesModificationId)
+                                                ,T.pack ","
+                                                ,T.intercalate
+                                                   ","
+                                                   (map (fromMaybe T.empty)
+                                                        (rim ^.
+                                                         rimReservedInstancesIds ^..
+                                                         traverse .
+                                                         riiReservedInstancesId))])))))
 
 initEnvs :: Config -> Logger -> IO [RIEnv]
 initEnvs cfg lgr =
