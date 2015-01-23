@@ -88,19 +88,6 @@ fetchRunningInstances =
                           a))
         []
 
-data Plan
-  = Plan [Plan]
-  | UnmatchedInstance Env
-                      Instance
-  | UnmatchedReserved Env
-                      ReservedInstances
-  | PartialReserved Env
-                    ReservedInstances
-                    [Instance]
-  | UsedReserved Env
-                 ReservedInstances
-                 [Instance]
-
 showMaybeText = T.unpack . fromMaybe (T.pack "n/a")
 showMaybeNum = show . fromMaybe 0
 showMaybeInstanceType t =
