@@ -4,7 +4,6 @@ AWS Reserved Instance Optimization
 
 ## Build
 
-[![Build Status](https://travis-ci.org/dysinger/rifactor.png)](https://travis-ci.org/dysinger/rifactor)
 
 ## Run
 
