@@ -40,15 +40,15 @@ riEnv :: Env -> RIEnv
 riEnv = RIEnv [] []
 
 data Resource
-  = UnmatchedInstance {_uiInstance :: Instance}
-  | UnmatchedReserved {_urEnv :: Env
-                      ,_urReservedInstances :: ReservedInstances}
-  | PartialReserved {_prEnv :: Env
-                    ,_prReservedInstances :: ReservedInstances
-                    ,_prInstances :: [Instance]}
-  | UsedReserved {_urEnv :: Env
-                 ,_urReservedInstances :: ReservedInstances
-                 ,_urInstances :: [Instance]}
+  = UnmatchedInstance {_reInstance :: Instance}
+  | UnmatchedReserved {_reEnv :: Env
+                      ,_reReservedInstances :: ReservedInstances}
+  | PartialReserved {_reEnv :: Env
+                    ,_reReservedInstances :: ReservedInstances
+                    ,_reInstances :: [Instance]}
+  | UsedReserved {_reEnv :: Env
+                 ,_reReservedInstances :: ReservedInstances
+                 ,_reInstances :: [Instance]}
 
 {- Lenses -}
 
