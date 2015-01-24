@@ -47,7 +47,6 @@ plan opts =
                     initEnvs cfg =<<
                     newLogger Info stdout
             putStrLn (unlines (map showResource (interpret envs)))
-            -- printReservedInstanceModifications cfg
 
 modifyResInstanceAsATest :: Config -> IO ()
 modifyResInstanceAsATest cfg =
