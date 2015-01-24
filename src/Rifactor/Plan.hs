@@ -49,6 +49,33 @@ plan opts =
             putStrLn (unlines (map showResource (interpret envs)))
             -- printReservedInstanceModifications cfg
 
+modifyResInstanceAsATest :: Config -> IO ()
+modifyResInstanceAsATest cfg =
+  do lgr <- newLogger Trace stdout
+     env' <- getEnv NorthVirginia Discover <&>
+             (envLogger .~ lgr)
+     result <- runAWST env'
+                       (send (modifyReservedInstances &
+                              (mriReservedInstancesIds .~
+                               [T.pack "130e039a-a4ed-48aa-8e7f-e48574098e22"]) &
+                              (mriClientToken ?~ "ABC123") &
+                              (mriTargetConfigurations .~
+                               [(reservedInstancesConfiguration &
+                                 (ricAvailabilityZone ?~
+                                  T.pack "us-east-1c") &
+                                 (ricInstanceType ?~ M2_4XLarge) &
+                                 (ricPlatform ?~ "EC2-Classic") &
+                                 (ricInstanceCount ?~ 2))
+                               ,(reservedInstancesConfiguration &
+                                 (ricAvailabilityZone ?~
+                                  T.pack "us-east-1b") &
+                                 (ricInstanceType ?~ M2_4XLarge) &
+                                 (ricPlatform ?~ "EC2-Classic") &
+                                 (ricInstanceCount ?~ 2))])))
+     case result of
+       (Left err) -> print err
+       (Right yay) -> print yay
+
 printReservedInstanceModifications :: Config -> IO ()
 printReservedInstanceModifications cfg =
   do lgr <- newLogger Info stdout
