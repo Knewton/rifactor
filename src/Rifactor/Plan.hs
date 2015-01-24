@@ -163,7 +163,8 @@ interpret es =
 
 matchActiveReserved :: [Resource] -> [Resource]
 matchActiveReserved =
-  matchActiveReserved' [] . partition isUnmatchedResource
+  matchActiveReserved' [] .
+  partition isUnmatchedResource
   where matchActiveReserved' ps ([],is) = ps ++ is
         matchActiveReserved' ps (rs,[]) = ps ++ rs
         matchActiveReserved' ps ((r@(UnmatchedReserved e ri):rs),is) =
@@ -171,7 +172,7 @@ matchActiveReserved =
                           (is)) of
             ([],unmatched) ->
               matchActiveReserved' (r : ps)
-                             (rs,unmatched)
+                                   (rs,unmatched)
             (matched,unmatched) ->
               let count =
                     fromMaybe 0 (ri ^. ri1InstanceCount)
@@ -180,7 +181,7 @@ matchActiveReserved =
                   lengthUsed = length used
               in if lengthUsed == 0
                     then matchActiveReserved' (r : ps)
-                                        (rs,is)
+                                              (rs,is)
                     else if lengthUsed == count
                             then matchActiveReserved'
                                    (UsedReserved e
