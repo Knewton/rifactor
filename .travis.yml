@@ -1,7 +1,7 @@
 # https://github.com/hvr/multi-ghc-travis
 
 env:
- - GHCVER=7.8.4 CABALVER=1.22
+ - GHCVER=7.8.4 CABALVER=1.20
 
 before_install:
  - travis_retry wget -O - http://llvm.org/apt/llvm-snapshot.gpg.key|sudo apt-key add -
@@ -15,14 +15,10 @@ install:
  - echo "$(ghc --version) [$(ghc --print-project-git-commit-id 2> /dev/null || echo '?')]"
  - travis_retry cabal update
  - cabal sandbox init
-#- git clone --branch=develop --depth=1 git://github.com/dysinger/amazonka ./.cabal-sandbox/src/amazonka
-#- cabal sandbox add-source ./.cabal-sandbox/src/amazonka/core
-#- cabal sandbox add-source ./.cabal-sandbox/src/amazonka/amazonka
-#- cabal sandbox add-source ./.cabal-sandbox/src/amazonka/amazonka-ec2
- - cabal install -v2 --only-dependencies --force-reinstalls --enable-tests --enable-benchmarks
+ - cabal install -j -v2 --enable-tests --enable-benchmarks --enable-documentation --force-reinstalls --only-dependencies
 
 script:
- - cabal install -v2 --enable-tests --enable-benchmarks
+ - cabal install -j -v2 --enable-tests --enable-benchmarks --enable-documentation
  - cabal test
  - cabal check
 #- cabal haddock
