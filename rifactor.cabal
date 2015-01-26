@@ -23,11 +23,11 @@ executable rifactor
   hs-source-dirs:      src
   main-is:             Main.hs
   ghc-options:         -Wall
-  build-depends:       base >=4.7 && <4.8
+  build-depends:       base          >=4.8   && <4.9
                      , aeson
-                     , amazonka >= 0.2.2 && <0.3
-                     , amazonka-core >= 0.2.2 && <0.3
-                     , amazonka-ec2 >= 0.2.2 && <0.3
+                     , amazonka      >=0.2.2 && <0.3
+                     , amazonka-core >=0.2.2 && <0.3
+                     , amazonka-ec2  >=0.2.2 && <0.3
                      , bytestring
                      , cabal-file-th
                      , conduit
@@ -50,11 +50,11 @@ library
   ghc-options:         -Wall
   exposed-modules:     Rifactor.Types
                      , Rifactor.Plan
-  build-depends:       base >=4.7 && <4.8
+  build-depends:       base          >=4.8   && <4.9
                      , aeson
-                     , amazonka >= 0.2.2 && <0.3
-                     , amazonka-core >= 0.2.2 && <0.3
-                     , amazonka-ec2 >= 0.2.2 && <0.3
+                     , amazonka      >=0.2.2 && <0.3
+                     , amazonka-core >=0.2.2 && <0.3
+                     , amazonka-ec2  >=0.2.2 && <0.3
                      , bytestring
                      , cabal-file-th
                      , conduit
@@ -76,7 +76,7 @@ test-suite test
   hs-source-dirs:      tests
   main-is:             test.hs
   type:                exitcode-stdio-1.0
-  build-depends:       base >=4.7 && <4.8
+  build-depends:       base          >=4.8   && <4.9
                      , tasty
                      , tasty-hspec
                      , tasty-quickcheck
