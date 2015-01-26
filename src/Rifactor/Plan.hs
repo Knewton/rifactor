@@ -163,45 +163,41 @@ interpret es =
 
 matchActiveReserved :: [Resource] -> [Resource]
 matchActiveReserved =
-  matchActiveReserved' [] .
-  partition isUnmatchedResource
-  where matchActiveReserved' ps ([],is) = ps ++ is
-        matchActiveReserved' ps (rs,[]) = ps ++ rs
-        matchActiveReserved' ps ((r@(UnmatchedReserved e ri):rs),is) =
-          case (partition (reservedMatchesInstance r)
+  match [] .
+  partition isUnmatched
+  where match ps ([],is) = ps ++ is
+        match ps (rs,[]) = ps ++ rs
+        match ps ((r@(UnmatchedReserved e ri):rs),is) =
+          case (partition (reservedMatch r)
                           (is)) of
             ([],unmatched) ->
-              matchActiveReserved' (r : ps)
-                                   (rs,unmatched)
+              match (r : ps)
+                    (rs,unmatched)
             (matched,unmatched) ->
               let count =
                     fromMaybe 0 (ri ^. ri1InstanceCount)
                   (used,unused) =
                     splitAt count matched
                   lengthUsed = length used
+                  ui =
+                    (map (\(UnmatchedInstance i) -> i) used)
               in if lengthUsed == 0
-                    then matchActiveReserved' (r : ps)
-                                              (rs,is)
+                    then match (r : ps)
+                               (rs,is)
                     else if lengthUsed == count
-                            then matchActiveReserved'
-                                   (UsedReserved e
-                                                 ri
-                                                 (map (\(UnmatchedInstance i) -> i) used) :
-                                    ps)
-                                   (rs,(unmatched ++ unused))
-                            else matchActiveReserved'
-                                   (PartialReserved e
-                                                    ri
-                                                    (map (\(UnmatchedInstance i) -> i) used) :
-                                    ps)
-                                   (rs,(unmatched ++ unused))
-        matchActiveReserved' ps (rs,is) = ps ++ rs ++ is
-        isUnmatchedResource UnmatchedReserved{..} = True
-        isUnmatchedResource _ = False
-        reservedMatchesInstance (UnmatchedReserved _ r) (UnmatchedInstance i) =
+                            then match (UsedReserved e ri ui :
+                                        ps)
+                                       (rs,(unmatched ++ unused))
+                            else match (PartialReserved e ri ui :
+                                        ps)
+                                       (rs,(unmatched ++ unused))
+        match ps (rs,is) = ps ++ rs ++ is
+        isUnmatched UnmatchedReserved{..} = True
+        isUnmatched _ = False
+        reservedMatch (UnmatchedReserved _ r) (UnmatchedInstance i) =
           (r ^. ri1InstanceType == i ^? i1InstanceType) &&
           (r ^. ri1AvailabilityZone == i ^. i1Placement ^. pAvailabilityZone)
-        reservedMatchesInstance _ _ = False
+        reservedMatch _ _ = False
 
 runningInstances :: RIEnv -> IO (Either Error [Reservation])
 runningInstances =
