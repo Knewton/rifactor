@@ -49,7 +49,7 @@ plan opts =
             putStrLn (unlines (map showResource (interpret envs)))
 
 modifyResInstanceAsATest :: Config -> IO ()
-modifyResInstanceAsATest cfg =
+modifyResInstanceAsATest _cfg =
   do lgr <- newLogger Trace stdout
      env' <- getEnv NorthVirginia Discover <&>
              (envLogger .~ lgr)
