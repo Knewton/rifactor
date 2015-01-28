@@ -52,6 +52,10 @@ plan opts =
                             then Trace
                             else Info)
                         stdout
+            dummyEnv <-
+              getEnv NorthVirginia
+                     (FromKeys (AccessKey B.empty)
+                               (SecretKey B.empty))
             riEnvs <-
               initEnvs cfg lgr >>=
               runAWST dummyEnv . fetchFromAmazon
@@ -60,9 +64,6 @@ plan opts =
               (Right riEnvs') ->
                 do mapM_ (print)
                          (traverse (view modifications) riEnvs')
-
-dummyEnv :: Env
-dummyEnv = undefined
 
 initEnvs :: Config -> Logger -> IO [RIEnv]
 initEnvs cfg lgr =
