@@ -171,6 +171,8 @@ interpret es =
      [UnmatchedInstance i | e <- es
                           , i <- e ^. instances])
 
+{- MATCHING FNS -}
+
 matchActiveReserved :: [Resource] -> [Resource]
 matchActiveReserved =
   match [] .
@@ -209,6 +211,10 @@ matchActiveReserved =
           (r ^. ri1AvailabilityZone == i ^. i1Placement ^. pAvailabilityZone)
         reservedMatch _ _ = False
 
+{- RESIZING -}
+
+{- QUERIES -}
+
 runningInstances :: RIEnv -> IO (Either Error [Reservation])
 runningInstances =
   flip runAWST
@@ -236,6 +242,8 @@ reservedInstancesModifications =
        (view drimrReservedInstancesModifications <$>
         send describeReservedInstancesModifications) .
   view env
+
+{- DISPLAY -}
 
 showMaybeText :: Maybe T.Text -> String
 showMaybeText = T.unpack . fromMaybe (T.pack "n/a")
