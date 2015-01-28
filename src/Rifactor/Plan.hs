@@ -262,6 +262,8 @@ showMaybeInstanceType t =
     Nothing -> "n/a"
 
 showResource :: Resource -> String
+showResource (UnmatchedPending r) = show r
+showResource (PendingModification _ r) = show r
 showResource (UnmatchedReserved _ r) =
   showMaybeText (r ^. ri1AvailabilityZone) ++
   "," ++
