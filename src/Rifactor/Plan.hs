@@ -1,7 +1,8 @@
-{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE RecordWildCards #-}
 
 -- Module      : Rifactor.Plan
 -- Copyright   : (c) 2015 Knewton, Inc <se@knewton.com>
@@ -15,13 +16,14 @@ module Rifactor.Plan where
 
 import           Control.Applicative
 import           Control.Lens
-import           Control.Monad
+import           Control.Monad (foldM, forM)
+import           Control.Monad.IO.Class ()
 import           Control.Monad.Trans.AWS hiding (accessKey, secretKey)
-import           Control.Monad.Trans.Resource
+import           Control.Monad.Trans.Resource (runResourceT)
 import qualified Data.Aeson as A
 import qualified Data.ByteString.Char8 as B
 import           Data.Char (toLower)
-import           Data.Conduit
+import           Data.Conduit (($$), ($=))
 import qualified Data.Conduit.Attoparsec as C (sinkParser)
 import qualified Data.Conduit.Binary as C (sourceFile)
 import qualified Data.Conduit.List as C
@@ -31,86 +33,36 @@ import qualified Data.Text as T
 import           Network.AWS.Data (toText)
 import           Network.AWS.EC2
 import           Rifactor.Types
-import           System.IO
+import           System.Exit (exitFailure)
+import           System.IO (stdout)
 
 plan :: Options -> IO ()
 plan opts =
   do config <-
        runResourceT $
-       C.sourceFile (opts ^. configFile) $$
+       C.sourceFile (opts ^. file) $$
        C.sinkParser A.json
      case (A.fromJSON config :: A.Result Config) of
        (A.Error err) ->
-         putStrLn ("Config File Error: " ++ err)
+         do putStrLn ("Config File Error: " ++ err)
+            exitFailure
        (A.Success cfg) ->
-         do envs <-
-              fetchRunningInstances =<<
-              fetchActiveReservedInstances =<<
-              initEnvs cfg =<<
-              newLogger Info stdout
-            putStrLn (unlines (map showResource (interpret envs)))
+         do lgr <-
+              newLogger (if (opts ^. verbose)
+                            then Trace
+                            else Info)
+                        stdout
+            riEnvs <-
+              initEnvs cfg lgr >>=
+              runAWST dummyEnv . fetchFromAmazon
+            case riEnvs of
+              (Left err) -> print err >> exitFailure
+              (Right riEnvs') ->
+                do mapM_ (print)
+                         (traverse (view modifications) riEnvs')
 
-{- TEST FNS -}
-
-modifyResInstanceAsATest :: Config -> IO ()
-modifyResInstanceAsATest _cfg =
-  do lgr <- newLogger Trace stdout
-     env' <-
-       getEnv NorthVirginia Discover <&>
-       (envLogger .~ lgr)
-     result <-
-       runAWST env'
-               (send (modifyReservedInstances &
-                      (mriReservedInstancesIds .~
-                       [T.pack "130e039a-a4ed-48aa-8e7f-e48574098e22"]) &
-                      (mriClientToken ?~ "ABC123") &
-                      (mriTargetConfigurations .~
-                       [(reservedInstancesConfiguration &
-                         (ricAvailabilityZone ?~
-                          T.pack "us-east-1c") &
-                         (ricInstanceType ?~ M2_4XLarge) &
-                         (ricPlatform ?~ "EC2-Classic") &
-                         (ricInstanceCount ?~ 2))
-                       ,(reservedInstancesConfiguration &
-                         (ricAvailabilityZone ?~
-                          T.pack "us-east-1b") &
-                         (ricInstanceType ?~ M2_4XLarge) &
-                         (ricPlatform ?~ "EC2-Classic") &
-                         (ricInstanceCount ?~ 2))])))
-     case result of
-       (Left err) -> print err
-       (Right yay) -> print yay
-
-printReservedInstanceModifications :: IO ()
-printReservedInstanceModifications =
-  do lgr <- newLogger Info stdout
-     env' <-
-       getEnv NorthVirginia Discover <&>
-       (envLogger .~ lgr)
-     _ <-
-       runAWST env'
-               (paginate describeReservedInstancesModifications $=
-                (C.concatMap (view drimrReservedInstancesModifications)) $$
-                (C.mapM_ (\rim ->
-                            (info . T.concat)
-                              ([T.pack (case (rim ^. rimCreateDate) of
-                                          Just t -> show t
-                                          Nothing -> "n/a")
-                               ,T.pack ","
-                               ,(fromMaybe T.empty (rim ^. rimStatus))
-                               ,T.pack ","
-                               ,(fromMaybe T.empty (rim ^. rimStatusMessage))
-                               ,T.pack ","
-                               ,fromMaybe T.empty
-                                          (rim ^.
-                                           rimReservedInstancesModificationId)
-                               ,T.pack ","
-                               ,T.intercalate
-                                  ","
-                                  (map (fromMaybe T.empty)
-                                       (rim ^. rimReservedInstancesIds ^..
-                                        traverse . riiReservedInstancesId))]))))
-     return ()
+dummyEnv :: Env
+dummyEnv = undefined
 
 initEnvs :: Config -> Logger -> IO [RIEnv]
 initEnvs cfg lgr =
@@ -124,28 +76,111 @@ initEnvs cfg lgr =
                          (SecretKey (B.pack (a ^. secretKey)))) <&>
         (envLogger .~ lgr)))
 
-fetchActiveReservedInstances :: [RIEnv] -> IO [RIEnv]
-fetchActiveReservedInstances =
+{- TEST FNS -}
+
+modifyResInstanceAsATest :: Env -> AWS ()
+modifyResInstanceAsATest env' =
+  runAWST env'
+          (send (modifyReservedInstances &
+                 (mriReservedInstancesIds .~
+                  [T.pack "130e039a-a4ed-48aa-8e7f-e48574098e22"]) &
+                 (mriClientToken ?~ "ABC123") &
+                 (mriTargetConfigurations .~
+                  [(reservedInstancesConfiguration &
+                    (ricAvailabilityZone ?~
+                     T.pack "us-east-1c") &
+                    (ricInstanceType ?~ M2_4XLarge) &
+                    (ricPlatform ?~ "EC2-Classic") &
+                    (ricInstanceCount ?~ 2))
+                  ,(reservedInstancesConfiguration &
+                    (ricAvailabilityZone ?~
+                     T.pack "us-east-1b") &
+                    (ricInstanceType ?~ M2_4XLarge) &
+                    (ricPlatform ?~ "EC2-Classic") &
+                    (ricInstanceCount ?~ 2))]))) >>=
+  hoistEither >>
+  return ()
+
+printReservedInstanceModifications :: Env -> AWS ()
+printReservedInstanceModifications env' =
+  runAWST env'
+          (paginate describeReservedInstancesModifications $=
+           (C.concatMap (view drimrReservedInstancesModifications)) $$
+           (C.mapM_ (\rim ->
+                       (info . T.concat)
+                         ([T.pack (case (rim ^. rimCreateDate) of
+                                     Just t -> show t
+                                     Nothing -> "n/a")
+                          ,T.pack ","
+                          ,(fromMaybe T.empty (rim ^. rimStatus))
+                          ,T.pack ","
+                          ,(fromMaybe T.empty (rim ^. rimStatusMessage))
+                          ,T.pack ","
+                          ,fromMaybe T.empty
+                                     (rim ^. rimReservedInstancesModificationId)
+                          ,T.pack ","
+                          ,T.intercalate
+                             ","
+                             (map (fromMaybe T.empty)
+                                  (rim ^. rimReservedInstancesIds ^.. traverse .
+                                   riiReservedInstancesId))])))) >>=
+  hoistEither >>
+  return ()
+
+{- QUERY AMAZON -}
+
+fetchFromAmazon :: [RIEnv] -> AWS [RIEnv]
+fetchFromAmazon e = fetchPendingModifications e >>= fetchRunningInstances >>=
+                    fetchActiveReservedInstances
+
+fetchPendingModifications :: [RIEnv] -> AWS [RIEnv]
+fetchPendingModifications =
   foldM (\a e ->
-           do is <- activeReservedInstances e
-              case is of
-                Left err -> print err >> return a
-                Right xs ->
-                  return ((e & reserved .~ xs) :
-                          a))
+           do is <-
+                hoistEither =<<
+                runAWST (e ^. env)
+                        (view drimrReservedInstancesModifications <$>
+                         send (describeReservedInstancesModifications &
+                               (drimFilters .~
+                                [filter' "status" &
+                                 fValues .~
+                                 [T.pack "pending"]])))
+              return ((e & modifications .~ is) :
+                      a))
         []
 
-fetchRunningInstances :: [RIEnv] -> IO [RIEnv]
+fetchActiveReservedInstances :: [RIEnv] -> AWS [RIEnv]
+fetchActiveReservedInstances =
+  foldM (\a e ->
+           do is <-
+                hoistEither =<<
+                runAWST (e ^. env)
+                        (view drirReservedInstances <$>
+                         send (describeReservedInstances & driFilters .~
+                               [filter' "state" &
+                                fValues .~
+                                [toText RISActive]]))
+              return ((e & reserved .~ is) :
+                      a))
+        []
+
+fetchRunningInstances :: [RIEnv] -> AWS [RIEnv]
 fetchRunningInstances =
   foldM (\a e ->
-           do is <- runningInstances e
-              case is of
-                Left err -> print err >> return a
-                Right xs ->
-                  return ((e & instances .~
-                           concatMap (view rInstances) xs) :
-                          a))
+           do is <-
+                hoistEither =<<
+                runAWST (e ^. env)
+                        (view dirReservations <$>
+                         send (describeInstances & di1Filters .~
+                               [filter' "instance-state-name" &
+                                fValues .~
+                                [toText ISNRunning]]))
+              return ((e & instances .~
+                       (concatMap (view rInstances) is)) :
+                      a))
         []
+
+{- INTERPRET DATA -}
 
 interpret :: [RIEnv] -> [Resource]
 interpret es =
@@ -155,8 +190,6 @@ interpret es =
                           , r <- e ^. reserved] ++
      [UnmatchedInstance i | e <- es
                           , i <- e ^. instances])
-
-{- MATCHING FNS -}
 
 matchActiveReserved :: [Resource] -> [Resource]
 matchActiveReserved =
@@ -199,6 +232,8 @@ matchActiveReserved =
 matchPendingModifications :: [Resource] -> [Resource]
 matchPendingModifications = id
 
+{- MODIFICATIONS -}
+
 matchPartialReserved :: [Resource] -> [Resource]
 matchPartialReserved = id
 
@@ -212,36 +247,6 @@ combineUnusedReserved = id
 
 resizeUnusedReserved :: [Resource] -> [Resource]
 resizeUnusedReserved = id
-
-{- QUERIES -}
-
-runningInstances :: RIEnv -> IO (Either Error [Reservation])
-runningInstances =
-  flip runAWST
-       (view dirReservations <$>
-        send (describeInstances & di1Filters .~
-              [filter' "instance-state-name" &
-               fValues .~
-               [toText ISNRunning]])) .
-  view env
-
-activeReservedInstances :: RIEnv -> IO (Either Error [ReservedInstances])
-activeReservedInstances =
-  flip runAWST
-       (view drirReservedInstances <$>
-        send (describeReservedInstances & driFilters .~
-              [filter' "state" &
-               fValues .~
-               [toText RISActive]])) .
-  view env
-
-reservedInstancesModifications :: RIEnv
-                               -> IO (Either Error [ReservedInstancesModification])
-reservedInstancesModifications =
-  flip runAWST
-       (view drimrReservedInstancesModifications <$>
-        send describeReservedInstancesModifications) .
-  view env
 
 {- DISPLAY -}
 

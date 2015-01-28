@@ -1,3 +1,4 @@
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE RecordWildCards #-}
@@ -11,6 +12,7 @@
 -- Stability   : experimental
 -- Portability : non-portable (GHC extensions)
 
+import Control.Monad.IO.Class ()
 import Data.Time
 import Distribution.PackageDescription.TH
 import Git.Embed
@@ -18,26 +20,6 @@ import Language.Haskell.TH
 import Options.Applicative
 import Rifactor.Plan
 import Rifactor.Types
-
-planParserInfo :: ParserInfo Options
-planParserInfo =
-  info (helper <*>
-        (PlanOptions <$>
-         (option auto
-                 (long "config-file" <>
-                  short 'c' <>
-                  metavar "FILE" <>
-                  help "Read config from FILE") <|>
-          pure "config.json") <*>
-         (option auto
-                 (long "log-level" <>
-                  short 'l' <>
-                  metavar "LEVEL" <>
-                  help "Set the logging LEVEL") <|>
-          pure "info")))
-       (fullDesc <>
-        header "RIFactor plan" <>
-        progDesc "Discover state, plan savings & print the plan")
 
 version :: String
 version = $(packageVariable (pkgVersion . package))
@@ -50,18 +32,26 @@ buildDate =
   $(stringE =<<
     runIO (show `fmap` Data.Time.getCurrentTime))
 
-mainParserInfo :: ParserInfo Options
-mainParserInfo =
+parserInfo :: ParserInfo Options
+parserInfo =
   info (helper <*>
-        subparser (command "plan" planParserInfo))
+        (Options <$>
+         (strOption (long "config-file" <>
+                     short 'c' <>
+                     metavar "FILE" <>
+                     help "Read JSON config from FILE") <|>
+          pure "config.json") <*>
+         (switch (long "dry-run" <>
+                  short 'd' <>
+                  help "Print instead of running")) <*>
+         (switch (long "verbose" <>
+                  short 'v' <>
+                  help "Show trace-level AWS data"))))
        (fullDesc <>
         header (("REFactor " ++ version) ++
                 (" | Source: " ++ gitRev) ++
                 (" | Built: " ++ buildDate)) <>
         progDesc "Optimize AWS Reserved Instances")
 
-exec :: Options -> IO ()
-exec opts@PlanOptions{..} = plan opts
-
 main :: IO ()
-main = exec =<< execParser mainParserInfo
+main = execParser parserInfo >>= plan

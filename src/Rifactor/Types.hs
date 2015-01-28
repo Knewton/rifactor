@@ -14,13 +14,14 @@ module Rifactor.Types where
 import Control.Lens (makeLenses)
 import Data.Aeson.TH (deriveJSON)
 import Network.AWS (Env)
-import Network.AWS.EC2.Types (ReservedInstances, Instance)
+import Network.AWS.EC2.Types hiding (Region)
 import Network.AWS.Types (Region)
 import Rifactor.Types.Internal (deriveOptions)
 
 data Options =
-  PlanOptions {_configFile :: FilePath
-              ,_logLevel :: String}
+  Options {_file :: FilePath
+          ,_dry :: Bool
+          ,_verbose :: Bool }
 
 data Account =
   Account {_name :: String
@@ -34,15 +35,17 @@ data Config =
 data RIEnv =
   RIEnv {_reserved :: [ReservedInstances]
         ,_instances :: [Instance]
+        ,_modifications :: [ReservedInstancesModification]
         ,_env :: Env}
 
 riEnv :: Env -> RIEnv
-riEnv = RIEnv [] []
+riEnv = RIEnv [] [] []
 
 data Resource
   = UnmatchedInstance {_reInstance :: Instance}
   | UnmatchedReserved {_reEnv :: Env
                       ,_reReservedInstances :: ReservedInstances}
+  | UnmatchedPending {_reModification :: ReservedInstancesModification}
   | PartialReserved {_reEnv :: Env
                     ,_reReservedInstances :: ReservedInstances
                     ,_reInstances :: [Instance]}
