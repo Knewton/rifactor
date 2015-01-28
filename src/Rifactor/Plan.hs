@@ -184,7 +184,7 @@ fetchRunningInstances =
 
 interpret :: [RIEnv] -> [Resource]
 interpret es =
-  (dropPendingModifiedReserved . matchPendingModifications . matchActiveReserved)
+  (filterPendingModifiedReserved . matchPendingModifications . matchActiveReserved)
     ([UnmatchedReserved (e ^. env)
                         r | e <- es
                           , r <- e ^. reserved] ++
@@ -193,8 +193,8 @@ interpret es =
      [UnmatchedPending m | e <- es
                          , m <- e ^. modified])
 
-dropPendingModifiedReserved :: [Resource] -> [Resource]
-dropPendingModifiedReserved =
+filterPendingModifiedReserved :: [Resource] -> [Resource]
+filterPendingModifiedReserved =
   match [] .
   partition isPending
   where match rs ([],ys) = rs ++ ys
