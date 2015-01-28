@@ -116,7 +116,6 @@ printReservedInstanceModifications cfg =
 
 initEnvs :: Config -> Logger -> IO [RIEnv]
 initEnvs cfg lgr =
-  -- TODO try something lensy like 'over traversal f'
   forM
     [(a,r) | r <- (cfg ^. regions)
            , a <- (cfg ^. accounts)]
@@ -131,7 +130,6 @@ fetchActiveReservedInstances :: [RIEnv] -> IO [RIEnv]
 fetchActiveReservedInstances =
   foldM (\a e ->
            do is <- activeReservedInstances e
-              -- TODO maybe we don't want lossy errs here during fetch? y mv to types
               case is of
                 Left err -> print err >> return a
                 Right xs ->
@@ -143,7 +141,6 @@ fetchRunningInstances :: [RIEnv] -> IO [RIEnv]
 fetchRunningInstances =
   foldM (\a e ->
            do is <- runningInstances e
-              -- TODO maybe we don't want lossy errs here during fetch? y mv to types
               case is of
                 Left err -> print err >> return a
                 Right xs ->
