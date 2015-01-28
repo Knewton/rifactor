@@ -43,9 +43,7 @@ plan opts =
        C.sourceFile (opts ^. file) $$
        C.sinkParser A.json
      case (A.fromJSON config :: A.Result Config) of
-       (A.Error err) ->
-         do putStrLn ("Config File Error: " ++ err)
-            exitFailure
+       (A.Error err) -> putStrLn err >> exitFailure
        (A.Success cfg) ->
          do lgr <-
               newLogger (if (opts ^. verbose)
