@@ -35,7 +35,7 @@ data Config =
 data RIEnv =
   RIEnv {_reserved :: [ReservedInstances]
         ,_instances :: [Instance]
-        ,_modifications :: [ReservedInstancesModification]
+        ,_modified :: [ReservedInstancesModification]
         ,_env :: Env}
 
 riEnv :: Env -> RIEnv
@@ -52,6 +52,8 @@ data Resource
   | UsedReserved {_reEnv :: Env
                  ,_reReservedInstances :: ReservedInstances
                  ,_reInstances :: [Instance]}
+  | PendingModification {_reModification :: ReservedInstancesModification
+                        ,_reInstances :: [Instance]}
 
 {- Lenses -}
 

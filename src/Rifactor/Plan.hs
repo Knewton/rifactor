@@ -54,14 +54,14 @@ plan opts =
               getEnv NorthVirginia
                      (FromKeys (AccessKey B.empty)
                                (SecretKey B.empty))
-            riEnvs <-
+            eRiEnvs <-
               initEnvs cfg lgr >>=
               runAWST dummyEnv . fetchFromAmazon
-            case riEnvs of
+            case eRiEnvs of
               (Left err) -> print err >> exitFailure
               (Right riEnvs') ->
-                do mapM_ (print)
-                         (traverse (view modifications) riEnvs')
+                mapM_ (putStrLn . showResource)
+                      (interpret riEnvs')
 
 initEnvs :: Config -> Logger -> IO [RIEnv]
 initEnvs cfg lgr =
@@ -129,8 +129,8 @@ printReservedInstanceModifications env' =
 {- QUERY AMAZON -}
 
 fetchFromAmazon :: [RIEnv] -> AWS [RIEnv]
-fetchFromAmazon e = fetchPendingModifications e >>= fetchRunningInstances >>=
-                    fetchActiveReservedInstances
+fetchFromAmazon e = fetchRunningInstances e >>= fetchActiveReservedInstances >>=
+                    fetchPendingModifications
 
 fetchPendingModifications :: [RIEnv] -> AWS [RIEnv]
 fetchPendingModifications =
@@ -143,8 +143,9 @@ fetchPendingModifications =
                                (drimFilters .~
                                 [filter' "status" &
                                  fValues .~
-                                 [T.pack "pending"]])))
-              return ((e & modifications .~ is) :
+                                 [T.pack "processing"]])))
+              mapM_ (info . T.pack . show) is
+              return ((e & modified .~ is) :
                       a))
         []
 
@@ -183,25 +184,50 @@ fetchRunningInstances =
 
 interpret :: [RIEnv] -> [Resource]
 interpret es =
-  matchActiveReserved
+  (dropPendingModifiedReserved . matchPendingModifications . matchActiveReserved)
     ([UnmatchedReserved (e ^. env)
                         r | e <- es
                           , r <- e ^. reserved] ++
      [UnmatchedInstance i | e <- es
-                          , i <- e ^. instances])
+                          , i <- e ^. instances] ++
+     [UnmatchedPending m | e <- es
+                         , m <- e ^. modified])
+
+dropPendingModifiedReserved :: [Resource] -> [Resource]
+dropPendingModifiedReserved =
+  match [] .
+  partition isPending
+  where match rs ([],ys) = rs ++ ys
+        match rs (xs,[]) = rs ++ xs
+        match rs ((x:xs),ys) =
+          let (_,unmatched) =
+                (partition (pendingMatch x) ys)
+          in match (x : rs)
+                   (xs,unmatched)
+        isPending UnmatchedPending{..} = True
+        isPending _ = False
+        pendingMatch (UnmatchedPending m) (UnmatchedReserved _ r) =
+          elemOf traverse
+                 (r ^. ri1ReservedInstancesId)
+                 (m ^. rimReservedInstancesIds ^..
+                  (traverse . riiReservedInstancesId))
+        pendingMatch _ _ = False
+
+matchPendingModifications :: [Resource] -> [Resource]
+matchPendingModifications = id
 
 matchActiveReserved :: [Resource] -> [Resource]
 matchActiveReserved =
   match [] .
   partition isUnmatched
-  where match ps ([],is) = ps ++ is
-        match ps (rs,[]) = ps ++ rs
-        match ps ((r@(UnmatchedReserved e ri):rs),is) =
-          case (partition (reservedMatch r)
-                          (is)) of
+  where match rs ([],ys) = rs ++ ys
+        match rs (xs,[]) = rs ++ xs
+        match rs ((x@(UnmatchedReserved e ri):xs),ys) =
+          case (partition (reservedMatch x)
+                          (ys)) of
             ([],unmatched) ->
-              match (r : ps)
-                    (rs,unmatched)
+              match (x : rs)
+                    (xs,unmatched)
             (matched,unmatched) ->
               let count =
                     fromMaybe 0 (ri ^. ri1InstanceCount)
@@ -211,16 +237,16 @@ matchActiveReserved =
                   ui =
                     (map (\(UnmatchedInstance i) -> i) used)
               in if lengthUsed == 0
-                    then match (r : ps)
-                               (rs,is)
+                    then match (x : rs)
+                               (xs,ys)
                     else if lengthUsed == count
                             then match (UsedReserved e ri ui :
-                                        ps)
-                                       (rs,(unmatched ++ unused))
+                                        rs)
+                                       (xs,(unmatched ++ unused))
                             else match (PartialReserved e ri ui :
-                                        ps)
-                                       (rs,(unmatched ++ unused))
-        match ps (rs,is) = ps ++ rs ++ is
+                                        rs)
+                                       (xs,(unmatched ++ unused))
+        match rs (xs,ys) = rs ++ xs ++ ys
         isUnmatched UnmatchedReserved{..} = True
         isUnmatched _ = False
         reservedMatch (UnmatchedReserved _ r) (UnmatchedInstance i) =
@@ -228,16 +254,13 @@ matchActiveReserved =
           (r ^. ri1AvailabilityZone == i ^. i1Placement ^. pAvailabilityZone)
         reservedMatch _ _ = False
 
-matchPendingModifications :: [Resource] -> [Resource]
-matchPendingModifications = id
-
 {- MODIFICATIONS -}
-
-matchPartialReserved :: [Resource] -> [Resource]
-matchPartialReserved = id
 
 matchUnusedReserved :: [Resource] -> [Resource]
 matchUnusedReserved = id
+
+matchPartialReserved :: [Resource] -> [Resource]
+matchPartialReserved = id
 
 {- RESIZING -}
 
