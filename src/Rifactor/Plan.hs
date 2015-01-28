@@ -211,7 +211,22 @@ matchActiveReserved =
           (r ^. ri1AvailabilityZone == i ^. i1Placement ^. pAvailabilityZone)
         reservedMatch _ _ = False
 
+matchPendingModifications :: [Resource] -> [Resource]
+matchPendingModifications = id
+
+matchPartialReserved :: [Resource] -> [Resource]
+matchPartialReserved = id
+
+matchUnusedReserved :: [Resource] -> [Resource]
+matchUnusedReserved = id
+
 {- RESIZING -}
+
+combineUnusedReserved :: [Resource] -> [Resource]
+combineUnusedReserved = id
+
+resizeUnusedReserved :: [Resource] -> [Resource]
+resizeUnusedReserved = id
 
 {- QUERIES -}
 
