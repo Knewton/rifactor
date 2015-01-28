@@ -75,44 +75,51 @@ modifyResInstanceAsATest _cfg =
        (Left err) -> print err
        (Right yay) -> print yay
 
-printReservedInstanceModifications :: Config -> IO ()
-printReservedInstanceModifications cfg =
+printReservedInstanceModifications :: IO ()
+printReservedInstanceModifications =
   do lgr <- newLogger Info stdout
-     forM_ [(a,r) | r <- (cfg ^. regions)
-                  , a <- (cfg ^. accounts)]
-           (\(a,r) ->
-              do env' <- getEnv r
-                                (FromKeys (AccessKey (B.pack (a ^. accessKey)))
-                                          (SecretKey (B.pack (a ^. secretKey)))) <&>
-                         (envLogger .~ lgr)
-                 runAWST env'
-                         (paginate (describeReservedInstancesModifications) =$
-                          C.concatMap (view drimrReservedInstancesModifications) $$
-                          C.mapM_ (info .
-                                   (\rim ->
-                                      T.concat ([T.pack (case (rim ^.
-                                                               rimCreateDate) of
-                                                           Just t -> show t
-                                                           Nothing -> "n/a")
-                                                ,T.pack ","
-                                                ,(fromMaybe T.empty
-                                                            (rim ^. rimStatus))
-                                                ,T.pack ","
-                                                ,(fromMaybe T.empty
-                                                            (rim ^.
-                                                             rimStatusMessage))
-                                                ,T.pack ","
-                                                ,fromMaybe T.empty
-                                                           (rim ^.
-                                                            rimReservedInstancesModificationId)
-                                                ,T.pack ","
-                                                ,T.intercalate
-                                                   ","
-                                                   (map (fromMaybe T.empty)
-                                                        (rim ^.
-                                                         rimReservedInstancesIds ^..
-                                                         traverse .
-                                                         riiReservedInstancesId))])))))
+     env' <-
+       getEnv NorthVirginia Discover <&>
+       (envLogger .~ lgr)
+     rs <- runAWST env' (query [] Nothing)
+     -- DOESN'T WORK
+     -- rs <- runAWST
+     --       env'
+     --       (view drimrReservedInstancesModifications <$>
+     --        send describeReservedInstancesModifications)
+     case rs of
+       (Left e) -> print e
+       (Right xs) ->
+         forM_ xs
+               (\rim ->
+                  (print . T.concat)
+                    ([T.pack (case (rim ^. rimCreateDate) of
+                                Just t -> show t
+                                Nothing -> "n/a")
+                     ,T.pack ","
+                     ,(fromMaybe T.empty (rim ^. rimStatus))
+                     ,T.pack ","
+                     ,(fromMaybe T.empty (rim ^. rimStatusMessage))
+                     ,T.pack ","
+                     ,fromMaybe T.empty
+                                (rim ^. rimReservedInstancesModificationId)
+                     ,T.pack ","
+                     ,T.intercalate
+                        ","
+                        (map (fromMaybe T.empty)
+                             (rim ^. rimReservedInstancesIds ^.. traverse .
+                              riiReservedInstancesId))]))
+  where query a t =
+          do xs <-
+               send (describeReservedInstancesModifications &
+                     (drimNextToken .~ t))
+             let a' =
+                   a ++
+                   (xs ^. drimrReservedInstancesModifications)
+             debug (xs ^. drimrNextToken)
+             case (xs ^. drimrNextToken) of
+               Nothing -> return a'
+               t' -> query a' t'
 
 initEnvs :: Config -> Logger -> IO [RIEnv]
 initEnvs cfg lgr =
