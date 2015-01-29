@@ -30,10 +30,7 @@ import           Network.AWS.EC2
 import           Rifactor.Plan
 import           Rifactor.Types
 import           Test.Tasty
-import           Test.Tasty.HUnit
 import           Test.Tasty.Hspec
-import           Test.Tasty.QuickCheck
-import           Test.Tasty.SmallCheck
 
 main :: IO ()
 main = tests >>= defaultMain
