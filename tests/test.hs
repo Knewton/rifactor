@@ -1,51 +1,111 @@
-{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE ConstraintKinds #-}
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE GADTs #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE TypeFamilies #-}
 
+-- Module      : Main
+-- Copyright   : (c) 2015 Knewton, Inc <se@knewton.com>
+--               (c) 2015 Tim Dysinger <tim@dysinger.net> (contributor)
+-- License     : Apache 2.0 http://opensource.org/licenses/Apache-2.0
+-- Maintainer  : Tim Dysinger <tim@dysinger.net>
+-- Stability   : experimental
+-- Portability : non-portable (GHC extensions)
+
+import           Control.Applicative
+import           Control.Exception
 import           Control.Lens
+import           Control.Monad
+import           Control.Monad.IO.Class
+import           Data.Time
 import qualified Data.Text as T
+import           Data.Time.Clock
+import           Network.AWS.Data
 import           Network.AWS.EC2
 import           Rifactor.Plan
 import           Rifactor.Types
 import           Test.Tasty
 import           Test.Tasty.HUnit
-import           Test.Tasty.TH
+import           Test.Tasty.Hspec
+import           Test.Tasty.QuickCheck
+import           Test.Tasty.SmallCheck
 
-case_PerfectMatch :: Assertion
-case_PerfectMatch =
-  True @=?
-  all match
-      (matchActiveReserved
-         (concat [mkInstances 20 "us-east-1a" M2_4XLarge
-                 ,mkReserved 2 "us-east-1a" 10 M2_4XLarge]))
-  where match (UsedReserved{..}) = True
-        match _ = False
+main :: IO ()
+main = tests >>= defaultMain
 
-case_PartialMatch :: Assertion
-case_PartialMatch =
-  1 @=?
-  length (filter match
-                 (matchActiveReserved
-                    (concat [mkInstances 19 "us-east-1a" M2_4XLarge
-                            ,mkReserved 2 "us-east-1a" 10 M2_4XLarge])))
-  where match (PartialReserved{..}) = True
-        match _ = False
+tests :: IO TestTree
+tests =
+  do sMatch <- specMatch
+     sMove <- specMove
+     return (testGroup "Tests" [sMatch, sMove])
 
-riFixture :: Int -> String -> InstanceType -> ReservedInstances
-riFixture count az itype =
+specMatch :: IO TestTree
+specMatch =
+  testSpec "Match Reserved" $
+  describe "match" $
+  do it "will match reserved/on-demand by type, network & AZ" $
+       do reserved <-
+            mkReserved 2 "us-east-1a" 10 M2_4XLarge
+          onDemand <-
+            mkInstances 20 "us-east-1a" M2_4XLarge
+          let (reserved',onDemand') =
+                match (reserved,onDemand)
+              isUsed (UsedReserved{..}) = True
+              isUsed _ = True
+          all isUsed reserved' `shouldBe`
+            True
+          onDemand' `shouldBe` []
+     it "will not match reserved/on-demand by just instance type" $
+       do reserved <-
+            mkReserved 2 "us-east-1a" 10 M2_4XLarge
+          onDemand <-
+            mkInstances 20 "us-east-1b" M2_4XLarge
+          let (reserved',onDemand') =
+                match (reserved,onDemand)
+              isNotUsed (Reserved{..}) = True
+              isNotUsed _ = True
+          all isNotUsed reserved' `shouldBe`
+            True
+          length onDemand' `shouldBe` 20
+
+specMove :: IO TestTree
+specMove =
+  testSpec "Move Reserved" $
+  describe "move" $
+  do it "will match reserved with on-demand by instance type alone" $
+       do reserved <-
+            mkReserved 2 "us-east-1a" 10 M2_4XLarge
+          onDemand <-
+            mkInstances 20 "us-east-1b" M2_4XLarge
+          let (reserved',onDemand') =
+                move (reserved,onDemand)
+              isUsed (UsedReserved{..}) = True
+              isUsed _ = True
+          all isUsed reserved' `shouldBe`
+            True
+          onDemand' `shouldBe` []
+
+riFixture :: Int -> String -> InstanceType -> UTCTime -> ReservedInstances
+riFixture count az itype _time =
   reservedInstances &
   (ri1AvailabilityZone ?~ T.pack az) &
   (ri1InstanceCount ?~ count) &
   (ri1InstanceType ?~ itype) &
   (ri1InstanceTenancy ?~ Dedicated)
 
-iFixture :: String -> InstanceType -> String -> Instance
-iFixture az itype iid =
+iFixture :: String -> InstanceType -> UTCTime -> String -> Instance
+iFixture az itype time iid =
   (instance' (T.pack iid)
              (T.pack "ami-fake0")
              (instanceState 16 ISNRunning)
              42
              itype
-             undefined
+             time
              (placement &
               (pAvailabilityZone ?~ T.pack az))
              (monitoring &
@@ -56,21 +116,16 @@ iFixture az itype iid =
              Xen
              False)
 
-mkReserved :: Int -> String -> Int -> InstanceType -> [Resource]
+mkReserved :: Int -> String -> Int -> InstanceType -> IO [Reserved]
 mkReserved rCount az iCount itype =
-  map (\_ ->
-         UnmatchedReserved undefined
-                           (riFixture iCount az itype))
-      ([1 .. rCount] :: [Int])
+  do time <- getCurrentTime
+     pure (map (\_ ->
+                  Reserved undefined (riFixture iCount az itype time))
+               ([1 .. rCount] :: [Int]))
 
-mkInstances :: Int -> String -> InstanceType -> [Resource]
-mkInstances count az itype =
-  map (\iid ->
-         UnmatchedInstance (iFixture az itype (show iid)))
-      ([1 .. count] :: [Int])
-
-tg :: TestTree
-tg = $(testGroupGenerator)
-
-main :: IO ()
-main = defaultMain tg
+mkInstances :: Int -> String -> InstanceType -> IO [OnDemand]
+mkInstances iCount az itype =
+  mapM (\instanceNum ->
+          do time <- getCurrentTime
+             pure (OnDemand (iFixture az itype time (show instanceNum))))
+       ([1 .. iCount] :: [Int])
