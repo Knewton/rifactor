@@ -101,8 +101,6 @@ checkPendingModifications =
                               then pure ()
                               else error "There are pending RI modifications."))
 
-{- QUERY AMAZON -}
-
 fetchFromAmazon :: [Env] -> AWS ([Reserved],[OnDemand])
 fetchFromAmazon es =
   pure (,) <*> fetchActiveReservedInstances es <*> fetchRunningInstances es
@@ -134,8 +132,6 @@ fetchRunningInstances =
                                    fValues .~
                                    [toText ISNRunning]]))
                  pure (map OnDemand (concatMap (view rInstances) xs)))
-
-{- INTERPRET DATA -}
 
 interpret :: ([Reserved],[OnDemand])
           -> ([Reserved],[OnDemand])
@@ -192,9 +188,6 @@ matchReserved = matchUnmatchedReserved isWorkableInstanceMatch .
         isWorkableInstanceMatch (UnmatchedReserved _ r) (OnDemand i) =
           (r ^. ri1InstanceType == i ^? i1InstanceType)
         isWorkableInstanceMatch _ _ = False
-
-{- DISPLAY -}
-
 toCsvMaybeText :: Maybe T.Text -> String
 toCsvMaybeText = T.unpack . fromMaybe (T.pack "n/a")
 
