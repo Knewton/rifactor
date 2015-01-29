@@ -95,7 +95,5 @@ test-suite test
                      -- Tests
                      , tasty
                      , tasty-hspec
-                     , tasty-hunit
                      , tasty-quickcheck
                      , tasty-smallcheck
-                     , tasty-th
