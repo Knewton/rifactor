@@ -103,10 +103,10 @@ checkPendingModifications =
 
 fetchFromAmazon :: [Env] -> AWS ([Reserved],[OnDemand])
 fetchFromAmazon es =
-  pure (,) <*> fetchActiveReservedInstances es <*> fetchRunningInstances es
+  pure (,) <*> fetchReservedInstances es <*> fetchInstances es
 
-fetchActiveReservedInstances :: [Env] -> AWS [Reserved]
-fetchActiveReservedInstances =
+fetchReservedInstances :: [Env] -> AWS [Reserved]
+fetchReservedInstances =
   liftA concat .
   traverse (\e ->
               do xs <-
@@ -119,8 +119,8 @@ fetchActiveReservedInstances =
                                    [toText RISActive]]))
                  pure (map (UnmatchedReserved e) xs))
 
-fetchRunningInstances :: [Env] -> AWS [OnDemand]
-fetchRunningInstances =
+fetchInstances :: [Env] -> AWS [OnDemand]
+fetchInstances =
   liftA concat .
   traverse (\e ->
               do xs <-
