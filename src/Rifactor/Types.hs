@@ -44,28 +44,19 @@ data OnDemand =
   OnDemand {_odInstance :: Instance}
 
 data Reserved
-  = UnmatchedReserved {_reEnv :: Env
-                      ,_reReservedInstances :: ReservedInstances}
-  | PartialReserved {_reEnv :: Env
-                    ,_reReservedInstances :: ReservedInstances
-                    ,_reInstances :: [Instance]}
+  = Reserved {_reEnv :: Env
+             ,_reReservedInstances :: ReservedInstances}
   | UsedReserved {_reEnv :: Env
                  ,_reReservedInstances :: ReservedInstances
                  ,_reInstances :: [Instance]}
-  | SplitUnmatchedReserved {_reEnv :: Env
-                           ,_reReservedInstances :: ReservedInstances
-                           ,_reNewInstances :: [Instance]}
-  | SplitPartialReserved {_reEnv :: Env
-                         ,_reReservedInstances :: ReservedInstances
-                         ,_reInstances :: [Instance]}
-  | CombineExistingReserved {_reEnv :: Env
-                            ,_reReservedInstances' :: [ReservedInstances]}
-  | ResizeUnmatchedReserved {_reEnv :: Env
-                            ,_reReservedInstances :: ReservedInstances
-                            ,_reInstances :: [Instance]}
-  | ResizePartialReserved {_reEnv :: Env
-                          ,_reReservedInstances :: ReservedInstances
-                          ,_reInstances :: [Instance]}
+  | SplitReserved {_reEnv :: Env
+                  ,_reReservedInstances :: ReservedInstances
+                  ,_reInstances :: [Instance]}
+  | CombineReserved {_reEnv :: Env
+                    ,_reReservedInstances' :: [ReservedInstances]}
+  | ResizeReserved {_reEnv :: Env
+                   ,_reReservedInstances :: ReservedInstances
+                   ,_reInstances :: [Instance]}
 
 {- Lenses -}
 

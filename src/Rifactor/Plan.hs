@@ -117,7 +117,7 @@ fetchReservedInstances =
                                   [filter' "state" &
                                    fValues .~
                                    [toText RISActive]]))
-                 pure (map (UnmatchedReserved e) xs))
+                 pure (map (Reserved e) xs))
 
 fetchInstances :: [Env] -> AWS [OnDemand]
 fetchInstances =
@@ -139,31 +139,40 @@ interpret = matchReserved . splitReserved
 
 matchReserved :: ([Reserved],[OnDemand]) -> ([Reserved],[OnDemand])
 matchReserved =
-  matchReserved' isPerfectInstanceMatch UsedReserved PartialReserved
-  where isPerfectInstanceMatch (UnmatchedReserved _ r) (OnDemand i) =
+  matchReserved' isPerfectInstanceMatch constructUsed
+  where isPerfectInstanceMatch (Reserved _ r) (OnDemand i) =
           (r ^. ri1AvailabilityZone == i ^. i1Placement ^. pAvailabilityZone) &&
           (r ^. ri1InstanceType == i ^? i1InstanceType)
         -- TODO Add network type (Classic vs VPN)
         isPerfectInstanceMatch _ _ = False
+        constructUsed r uis =
+          (UsedReserved
+             (r ^. reEnv)
+             ((r ^. reInstances) ++
+              uis))
 
 splitReserved :: ([Reserved],[OnDemand]) -> ([Reserved],[OnDemand])
 splitReserved =
-  matchReserved' isWorkableInstanceMatch SplitUnmatchedReserved SplitPartialReserved
-  where isWorkableInstanceMatch (UnmatchedReserved _ r) (OnDemand i) =
+  matchReserved' isWorkableInstanceMatch constructSplit
+  where isWorkableInstanceMatch (Reserved _ r) (OnDemand i) =
           (r ^. ri1InstanceType == i ^? i1InstanceType)
         isWorkableInstanceMatch _ _ = False
+        constructSplit r uis =
+          (SplitReserved
+             (r ^. reEnv)
+             ((r ^. reInstances) ++
+              uis))
 
 -- TODO We need more than a constructor here because Splits require both original matching & new matching instances
 -- TODO Is keeping track of partial-XYZ worth the hassle?
 
 matchReserved' :: (Reserved -> OnDemand -> Bool)
-               -> (Env -> ReservedInstances -> [Instance] -> Reserved)
-               -> (Env -> ReservedInstances -> [Instance] -> Reserved)
+               -> (Reserved -> Env -> ReservedInstances -> [Instance] -> Reserved)
                -> ([Reserved],[OnDemand])
                -> ([Reserved],[OnDemand])
-matchReserved' isMatchingInstances fullFn partialFn (reserved,nodes) =
+matchReserved' isMatchingInstances f (reserved,nodes) =
   let (unmatchedReserved,otherReserved) =
-        partition isUnmatchedReserved reserved
+        partition isReserved reserved
   in match otherReserved (unmatchedReserved,nodes)
   where match rs ([],ys) = (rs,ys)
         match rs (xs,[]) = (rs ++ xs,[])
@@ -177,25 +186,16 @@ matchReserved' isMatchingInstances fullFn partialFn (reserved,nodes) =
                     fromMaybe 0 (x ^?! reReservedInstances ^. ri1InstanceCount)
                   (used,unused) =
                     splitAt count matched
-                  lengthUsed = length used
                   uis =
                     map (\(OnDemand i) -> i) used
-              in if lengthUsed == 0
+              in if length used == 0
                     then match (x : rs)
                                (xs,ys)
-                    else if lengthUsed == count
-                            then match (fullFn (x ^. reEnv)
-                                               (x ^?! reReservedInstances)
-                                               uis :
-                                        rs)
-                                       (xs,(unmatched ++ unused))
-                            else match (partialFn (x ^. reEnv)
-                                                  (x ^?! reReservedInstances)
-                                                  uis :
-                                        rs)
-                                       (xs,(unmatched ++ unused))
-        isUnmatchedReserved UnmatchedReserved{..} = True
-        isUnmatchedReserved _ = False
+                    else match (f x uis :
+                                rs)
+                               (xs,(unmatched ++ unused))
+        isReserved Reserved{..} = True
+        isReserved _ = False
 
 toCsvMaybeText :: Maybe T.Text -> String
 toCsvMaybeText = T.unpack . fromMaybe (T.pack "n/a")
