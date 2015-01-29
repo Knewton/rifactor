@@ -19,11 +19,11 @@
 
 module Rifactor.Types where
 
-import Control.Lens (makeLenses)
+import Control.Lens
 import Data.Aeson.TH (deriveJSON)
-import Network.AWS (Env)
+import Network.AWS
+import Network.AWS.Data
 import Network.AWS.EC2.Types hiding (Region)
-import Network.AWS.Types (Region)
 import Rifactor.Types.Internal (deriveOptions)
 
 data Options =
@@ -42,6 +42,7 @@ data Config =
 
 data OnDemand =
   OnDemand {_odInstance :: Instance}
+  deriving Show
 
 data Reserved
   = Reserved {_reEnv :: Env
@@ -57,6 +58,10 @@ data Reserved
   | ResizeReserved {_reEnv :: Env
                    ,_reReservedInstances :: ReservedInstances
                    ,_reInstances :: [Instance]}
+  deriving Show
+
+instance Show Env where
+  show e = show (toText (e ^. envRegion))
 
 {- Lenses -}
 

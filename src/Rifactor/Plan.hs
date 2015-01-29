@@ -27,11 +27,9 @@ import           Control.Monad.Trans.AWS hiding (accessKey, secretKey)
 import           Control.Monad.Trans.Resource (runResourceT)
 import qualified Data.Aeson as A
 import qualified Data.ByteString.Char8 as B
-import           Data.Char (toLower)
-import           Data.Conduit (($$), ($=))
+import           Data.Conduit (($$))
 import qualified Data.Conduit.Attoparsec as C (sinkParser)
 import qualified Data.Conduit.Binary as C (sourceFile)
-import qualified Data.Conduit.List as C
 import           Data.Foldable (traverse_)
 import           Data.Traversable (for)
 import           Data.List (partition)
@@ -73,8 +71,8 @@ plan opts =
                      (Left err) -> print err >> exitFailure
                      (Right xs) ->
                        do let (reserved,nodes) = interpret xs
-                          traverse_ (print . toCsvReserved) reserved
-                          traverse_ (print . toCsvOnDemand) nodes
+                          traverse_ print reserved
+                          traverse_ print nodes
 
 initEnvs :: Config -> Logger -> IO [Env]
 initEnvs cfg lgr =
@@ -191,51 +189,3 @@ matchUnused isMatchingInstances f (reserved,nodes) =
                                (xs,(unmatched ++ unused))
         isReserved Reserved{..} = True
         isReserved _ = False
-
-toCsvMaybeText :: Maybe T.Text -> String
-toCsvMaybeText = T.unpack . fromMaybe (T.pack "n/a")
-
-toCsvMaybeNum :: Maybe Int -> String
-toCsvMaybeNum = show . fromMaybe 0
-
-toCsvMaybeInstanceType :: forall a. Show a => Maybe a -> String
-toCsvMaybeInstanceType t =
-  case t of
-    Just t' -> map toLower (show t')
-    Nothing -> "n/a"
-
-toCsvReserved :: Reserved -> String
-toCsvReserved (Reserved _ r) =
-  toCsvMaybeText (r ^. ri1AvailabilityZone) ++
-  "," ++
-  toCsvMaybeInstanceType (r ^. ri1InstanceType) ++
-  "," ++
-  "reserved-instances (unmatched)" ++
-  "," ++
-  toCsvMaybeText (r ^. ri1ReservedInstancesId) ++
-  ",0," ++
-  toCsvMaybeNum (r ^. ri1InstanceCount)
-toCsvReserved (UsedReserved _ r is) =
-  toCsvMaybeText (r ^. ri1AvailabilityZone) ++
-  "," ++
-  toCsvMaybeInstanceType (r ^. ri1InstanceType) ++
-  "," ++
-  "reserved-instances (used)" ++
-  "," ++
-  toCsvMaybeText (r ^. ri1ReservedInstancesId) ++
-  "," ++
-  show (length is) ++
-  "," ++
-  toCsvMaybeNum (r ^. ri1InstanceCount)
-toCsvReserved _ = error "TODO"
-
-toCsvOnDemand :: OnDemand -> String
-toCsvOnDemand (OnDemand i) =
-  T.unpack (fromMaybe (T.pack "n/a")
-                      (i ^. i1Placement ^. pAvailabilityZone)) ++
-  "," ++
-  map toLower (show (i ^. i1InstanceType)) ++
-  "," ++
-  "instance (unmatched)" ++
-  "," ++
-  T.unpack (i ^. i1InstanceId)
