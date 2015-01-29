@@ -52,23 +52,20 @@ data Reserved
   | UsedReserved {_reEnv :: Env
                  ,_reReservedInstances :: ReservedInstances
                  ,_reInstances :: [Instance]}
-  | SplitPartialReserved {_reEnv :: Env
-                         ,_reReservedInstances :: ReservedInstances
-                         ,_reInstances :: [Instance]
-                         ,_reNewInstances :: [Instance]}
   | SplitUnmatchedReserved {_reEnv :: Env
                            ,_reReservedInstances :: ReservedInstances
-                           ,_reInstances :: [Instance]
                            ,_reNewInstances :: [Instance]}
+  | SplitPartialReserved {_reEnv :: Env
+                         ,_reReservedInstances :: ReservedInstances
+                         ,_reInstances :: [Instance]}
   | CombineExistingReserved {_reEnv :: Env
                             ,_reReservedInstances' :: [ReservedInstances]}
   | ResizeUnmatchedReserved {_reEnv :: Env
                             ,_reReservedInstances :: ReservedInstances
-                            ,_reNewInstances :: [Instance]}
+                            ,_reInstances :: [Instance]}
   | ResizePartialReserved {_reEnv :: Env
                           ,_reReservedInstances :: ReservedInstances
-                          ,_reInstances :: [Instance]
-                          ,_reNewInstances :: [Instance]}
+                          ,_reInstances :: [Instance]}
 
 {- Lenses -}
 

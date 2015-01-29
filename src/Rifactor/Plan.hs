@@ -137,10 +137,25 @@ interpret :: ([Reserved],[OnDemand])
           -> ([Reserved],[OnDemand])
 interpret = matchReserved
 
-matchUnmatchedReserved :: (Reserved -> OnDemand -> Bool)
-                       -> ([Reserved],[OnDemand])
-                       -> ([Reserved],[OnDemand])
-matchUnmatchedReserved isMatchingInstances (reserved,nodes) =
+matchReserved :: ([Reserved],[OnDemand]) -> ([Reserved],[OnDemand])
+matchReserved =
+  (matchReserved' isWorkableInstanceMatch SplitUnmatchedReserved SplitPartialReserved) .
+  (matchReserved' isPerfectInstanceMatch UsedReserved PartialReserved)
+  where isPerfectInstanceMatch (UnmatchedReserved _ r) (OnDemand i) =
+          (r ^. ri1AvailabilityZone == i ^. i1Placement ^. pAvailabilityZone) &&
+          (r ^. ri1InstanceType == i ^? i1InstanceType)
+        -- TODO Add network type (Classic vs VPN)
+        isPerfectInstanceMatch _ _ = False
+        isWorkableInstanceMatch (UnmatchedReserved _ r) (OnDemand i) =
+          (r ^. ri1InstanceType == i ^? i1InstanceType)
+        isWorkableInstanceMatch _ _ = False
+
+matchReserved' :: (Reserved -> OnDemand -> Bool)
+               -> (Env -> ReservedInstances -> [Instance] -> Reserved)
+               -> (Env -> ReservedInstances -> [Instance] -> Reserved)
+               -> ([Reserved],[OnDemand])
+               -> ([Reserved],[OnDemand])
+matchReserved' isMatchingInstances fullFn partialFn (reserved,nodes) =
   let (unmatchedReserved,otherReserved) =
         partition isUnmatchedReserved reserved
   in match otherReserved (unmatchedReserved,nodes)
@@ -163,31 +178,19 @@ matchUnmatchedReserved isMatchingInstances (reserved,nodes) =
                     then match (x : rs)
                                (xs,ys)
                     else if lengthUsed == count
-                            then match (UsedReserved (x ^. reEnv)
-                                                     (x ^?! reReservedInstances)
-                                                     uis :
+                            then match (fullFn (x ^. reEnv)
+                                               (x ^?! reReservedInstances)
+                                               uis :
                                         rs)
                                        (xs,(unmatched ++ unused))
-                            else match (PartialReserved
-                                          (x ^. reEnv)
-                                          (x ^?! reReservedInstances)
-                                          uis :
+                            else match (partialFn (x ^. reEnv)
+                                                  (x ^?! reReservedInstances)
+                                                  uis :
                                         rs)
                                        (xs,(unmatched ++ unused))
         isUnmatchedReserved UnmatchedReserved{..} = True
         isUnmatchedReserved _ = False
 
-matchReserved :: ([Reserved],[OnDemand]) -> ([Reserved],[OnDemand])
-matchReserved = matchUnmatchedReserved isWorkableInstanceMatch .
-                matchUnmatchedReserved isPerfectInstanceMatch -- TODO ADD CONSTRUCTORS FOR DIFFERENT INSTANCES
-  where isPerfectInstanceMatch (UnmatchedReserved _ r) (OnDemand i) =
-          (r ^. ri1AvailabilityZone == i ^. i1Placement ^. pAvailabilityZone) &&
-          (r ^. ri1InstanceType == i ^? i1InstanceType)
-        -- TODO Add network type (Classic vs VPN)
-        isPerfectInstanceMatch _ _ = False
-        isWorkableInstanceMatch (UnmatchedReserved _ r) (OnDemand i) =
-          (r ^. ri1InstanceType == i ^? i1InstanceType)
-        isWorkableInstanceMatch _ _ = False
 toCsvMaybeText :: Maybe T.Text -> String
 toCsvMaybeText = T.unpack . fromMaybe (T.pack "n/a")
 
