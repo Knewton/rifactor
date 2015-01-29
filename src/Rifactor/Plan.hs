@@ -101,57 +101,6 @@ checkPendingModifications =
                               then pure ()
                               else error "There are pending RI modifications."))
 
-{- TEST FNS -}
-
-modifyResInstanceAsATest :: Env -> AWS ()
-modifyResInstanceAsATest e =
-  runAWST e
-          (send (modifyReservedInstances &
-                 (mriReservedInstancesIds .~
-                  [T.pack "130e039a-a4ed-48aa-8e7f-e48574098e22"]) &
-                 (mriClientToken ?~ "ABC123") &
-                 (mriTargetConfigurations .~
-                  [(reservedInstancesConfiguration &
-                    (ricAvailabilityZone ?~
-                     T.pack "us-east-1c") &
-                    (ricInstanceType ?~ M2_4XLarge) &
-                    (ricPlatform ?~ "EC2-Classic") &
-                    (ricInstanceCount ?~ 2))
-                  ,(reservedInstancesConfiguration &
-                    (ricAvailabilityZone ?~
-                     T.pack "us-east-1b") &
-                    (ricInstanceType ?~ M2_4XLarge) &
-                    (ricPlatform ?~ "EC2-Classic") &
-                    (ricInstanceCount ?~ 2))]))) >>=
-  hoistEither >>
-  pure ()
-
-printReservedInstanceModifications :: Env -> AWS ()
-printReservedInstanceModifications e =
-  runAWST e
-          (paginate describeReservedInstancesModifications $=
-           (C.concatMap (view drimrReservedInstancesModifications)) $$
-           (C.mapM_ (\rim ->
-                       (info . T.concat)
-                         ([T.pack (case (rim ^. rimCreateDate) of
-                                     Just t -> show t
-                                     Nothing -> "n/a")
-                          ,T.pack ","
-                          ,(fromMaybe T.empty (rim ^. rimStatus))
-                          ,T.pack ","
-                          ,(fromMaybe T.empty (rim ^. rimStatusMessage))
-                          ,T.pack ","
-                          ,fromMaybe T.empty
-                                     (rim ^. rimReservedInstancesModificationId)
-                          ,T.pack ","
-                          ,T.intercalate
-                             ","
-                             (map (fromMaybe T.empty)
-                                  (rim ^. rimReservedInstancesIds ^.. traverse .
-                                   riiReservedInstancesId))])))) >>=
-  hoistEither >>
-  pure ()
-
 {- QUERY AMAZON -}
 
 fetchFromAmazon :: [Env] -> AWS ([Reserved],[OnDemand])
