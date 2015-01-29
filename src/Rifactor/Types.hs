@@ -42,7 +42,7 @@ data Config =
 
 data OnDemand =
   OnDemand {_odInstance :: Instance}
-  deriving Show
+  deriving (Show, Eq)
 
 data Reserved
   = Reserved {_reEnv :: Env
@@ -62,10 +62,10 @@ data Reserved
   | ResizeReserved {_reEnv :: Env
                    ,_reReservedInstances :: ReservedInstances
                    ,_reInstances :: [Instance]}
-  deriving Show
+  deriving (Show,Eq)
 
-instance Show Env where
-  show e = show (toText (e ^. envRegion))
+instance Show Env
+instance Eq Env
 
 {- Lenses -}
 
