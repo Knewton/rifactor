@@ -1,5 +1,13 @@
+{-# LANGUAGE ConstraintKinds #-}
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE GADTs #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TemplateHaskell #-}
-{-# OPTIONS_GHC -fwarn-auto-orphans #-}
+{-# LANGUAGE TypeFamilies #-}
 
 -- Module      : Rifactor.Types
 -- Copyright   : (c) 2015 Knewton, Inc <se@knewton.com>
@@ -32,17 +40,11 @@ data Config =
   Config {_accounts :: [Account]
          ,_regions :: [Region]}
 
-data RIEnv =
-  RIEnv {_reserved :: [ReservedInstances]
-        ,_instances :: [Instance]
-        ,_env :: Env}
+data OnDemand =
+  OnDemand {_odInstance :: Instance}
 
-riEnv :: Env -> RIEnv
-riEnv = RIEnv [] []
-
-data Resource
-  = UnmatchedInstance {_reInstance :: Instance}
-  | UnmatchedReserved {_reEnv :: Env
+data Reserved
+  = UnmatchedReserved {_reEnv :: Env
                       ,_reReservedInstances :: ReservedInstances}
   | PartialReserved {_reEnv :: Env
                     ,_reReservedInstances :: ReservedInstances
@@ -50,15 +52,31 @@ data Resource
   | UsedReserved {_reEnv :: Env
                  ,_reReservedInstances :: ReservedInstances
                  ,_reInstances :: [Instance]}
+  | SplitPartialReserved {_reEnv :: Env
+                         ,_reReservedInstances :: ReservedInstances
+                         ,_reInstances :: [Instance]
+                         ,_reNewInstances :: [Instance]}
+  | SplitUnmatchedReserved {_reEnv :: Env
+                           ,_reReservedInstances :: ReservedInstances
+                           ,_reInstances :: [Instance]
+                           ,_reNewInstances :: [Instance]}
+  | CombineExistingReserved {_reEnv :: Env
+                            ,_reReservedInstances' :: [ReservedInstances]}
+  | ResizeUnmatchedReserved {_reEnv :: Env
+                            ,_reReservedInstances :: ReservedInstances
+                            ,_reNewInstances :: [Instance]}
+  | ResizePartialReserved {_reEnv :: Env
+                          ,_reReservedInstances :: ReservedInstances
+                          ,_reInstances :: [Instance]
+                          ,_reNewInstances :: [Instance]}
 
 {- Lenses -}
 
 $(makeLenses ''Account)
 $(makeLenses ''Config)
+$(makeLenses ''OnDemand)
 $(makeLenses ''Options)
-$(makeLenses ''Resource)
-$(makeLenses ''RIEnv)
-
+$(makeLenses ''Reserved)
 
 {- JSON -}
 

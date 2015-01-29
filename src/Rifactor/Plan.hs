@@ -1,8 +1,14 @@
 {-# LANGUAGE ConstraintKinds #-}
+{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE GADTs #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE TypeFamilies #-}
 
 -- Module      : Rifactor.Plan
 -- Copyright   : (c) 2015 Knewton, Inc <se@knewton.com>
@@ -55,35 +61,35 @@ plan opts =
               getEnv NorthVirginia
                      (FromKeys (AccessKey B.empty)
                                (SecretKey B.empty))
-            riEnvs <- initEnvs cfg lgr
+            es <- initEnvs cfg lgr
             pending <-
-              runAWST dummyEnv (checkPendingModifications riEnvs)
+              runAWST dummyEnv (checkPendingModifications es)
             case pending of
               (Left err) -> print err >> exitFailure
               _ ->
-                do eRiEnvs <-
-                     runAWST dummyEnv (fetchFromAmazon riEnvs)
-                   case eRiEnvs of
+                do results <-
+                     runAWST dummyEnv (fetchFromAmazon es)
+                   case results of
                      (Left err) -> print err >> exitFailure
-                     (Right es) ->
-                       traverse_ (putStrLn . showResource)
-                                 (interpret es)
+                     (Right xs) ->
+                       do let (reserved,nodes) = interpret xs
+                          traverse_ (print . toCsvReserved) reserved
+                          traverse_ (print . toCsvOnDemand) nodes
 
-initEnvs :: Config -> Logger -> IO [RIEnv]
+initEnvs :: Config -> Logger -> IO [Env]
 initEnvs cfg lgr =
   for [(a,r) | r <- (cfg ^. regions)
              , a <- (cfg ^. accounts)]
       (\(a,r) ->
-         riEnv <$>
          (getEnv r
                  (FromKeys (AccessKey (B.pack (a ^. accessKey)))
                            (SecretKey (B.pack (a ^. secretKey)))) <&>
           (envLogger .~ lgr)))
 
-checkPendingModifications :: [RIEnv] -> AWS ()
+checkPendingModifications :: [Env] -> AWS ()
 checkPendingModifications =
   traverse_ (\e ->
-               runAWST (e ^. env)
+               runAWST e
                        (do rims <-
                              view drimrReservedInstancesModifications <$>
                              send (describeReservedInstancesModifications &
@@ -92,14 +98,14 @@ checkPendingModifications =
                                      fValues .~
                                      [T.pack "processing"]]))
                            if null rims
-                              then return ()
+                              then pure ()
                               else error "There are pending RI modifications."))
 
 {- TEST FNS -}
 
 modifyResInstanceAsATest :: Env -> AWS ()
-modifyResInstanceAsATest env' =
-  runAWST env'
+modifyResInstanceAsATest e =
+  runAWST e
           (send (modifyReservedInstances &
                  (mriReservedInstancesIds .~
                   [T.pack "130e039a-a4ed-48aa-8e7f-e48574098e22"]) &
@@ -118,11 +124,11 @@ modifyResInstanceAsATest env' =
                     (ricPlatform ?~ "EC2-Classic") &
                     (ricInstanceCount ?~ 2))]))) >>=
   hoistEither >>
-  return ()
+  pure ()
 
 printReservedInstanceModifications :: Env -> AWS ()
-printReservedInstanceModifications env' =
-  runAWST env'
+printReservedInstanceModifications e =
+  runAWST e
           (paginate describeReservedInstancesModifications $=
            (C.concatMap (view drimrReservedInstancesModifications)) $$
            (C.mapM_ (\rim ->
@@ -144,155 +150,153 @@ printReservedInstanceModifications env' =
                                   (rim ^. rimReservedInstancesIds ^.. traverse .
                                    riiReservedInstancesId))])))) >>=
   hoistEither >>
-  return ()
+  pure ()
 
 {- QUERY AMAZON -}
 
-fetchFromAmazon :: [RIEnv] -> AWS [RIEnv]
-fetchFromAmazon e = fetchRunningInstances e >>= fetchActiveReservedInstances
+fetchFromAmazon :: [Env] -> AWS ([Reserved],[OnDemand])
+fetchFromAmazon es =
+  pure (,) <*> fetchActiveReservedInstances es <*> fetchRunningInstances es
 
-fetchActiveReservedInstances :: [RIEnv] -> AWS [RIEnv]
+fetchActiveReservedInstances :: [Env] -> AWS [Reserved]
 fetchActiveReservedInstances =
+  liftA concat .
   traverse (\e ->
               do xs <-
                    hoistEither =<<
-                   runAWST (e ^. env)
+                   runAWST e
                            (view drirReservedInstances <$>
                             send (describeReservedInstances & driFilters .~
                                   [filter' "state" &
                                    fValues .~
                                    [toText RISActive]]))
-                 pure (e & reserved .~ xs))
+                 pure (map (UnmatchedReserved e) xs))
 
-fetchRunningInstances :: [RIEnv] -> AWS [RIEnv]
+fetchRunningInstances :: [Env] -> AWS [OnDemand]
 fetchRunningInstances =
+  liftA concat .
   traverse (\e ->
               do xs <-
                    hoistEither =<<
-                   runAWST (e ^. env)
+                   runAWST e
                            (view dirReservations <$>
                             send (describeInstances & di1Filters .~
                                   [filter' "instance-state-name" &
                                    fValues .~
                                    [toText ISNRunning]]))
-                 pure (e & instances .~
-                       (concatMap (view rInstances) xs)))
+                 pure (map OnDemand (concatMap (view rInstances) xs)))
 
 {- INTERPRET DATA -}
 
-interpret :: [RIEnv] -> [Resource]
-interpret es =
-  matchActiveReserved
-    ([UnmatchedReserved (e ^. env)
-                        r | e <- es
-                          , r <- e ^. reserved] ++
-     [UnmatchedInstance i | e <- es
-                          , i <- e ^. instances])
+interpret :: ([Reserved],[OnDemand])
+          -> ([Reserved],[OnDemand])
+interpret = matchReserved
 
-matchActiveReserved :: [Resource] -> [Resource]
-matchActiveReserved =
-  match [] .
-  partition isUnmatched
-  where match rs ([],ys) = rs ++ ys
-        match rs (xs,[]) = rs ++ xs
-        match rs ((x@(UnmatchedReserved e ri):xs),ys) =
-          case (partition (reservedMatch x)
-                          (ys)) of
+matchUnmatchedReserved :: (Reserved -> OnDemand -> Bool)
+                       -> ([Reserved],[OnDemand])
+                       -> ([Reserved],[OnDemand])
+matchUnmatchedReserved isMatchingInstances (reserved,nodes) =
+  let (unmatchedReserved,otherReserved) =
+        partition isUnmatchedReserved reserved
+  in match otherReserved (unmatchedReserved,nodes)
+  where match rs ([],ys) = (rs,ys)
+        match rs (xs,[]) = (rs ++ xs,[])
+        match rs ((x:xs),ys) =
+          case (partition (isMatchingInstances x) ys) of
             ([],unmatched) ->
               match (x : rs)
                     (xs,unmatched)
             (matched,unmatched) ->
               let count =
-                    fromMaybe 0 (ri ^. ri1InstanceCount)
+                    fromMaybe 0 (x ^?! reReservedInstances ^. ri1InstanceCount)
                   (used,unused) =
                     splitAt count matched
                   lengthUsed = length used
-                  ui =
-                    (map (\(UnmatchedInstance i) -> i) used)
+                  uis =
+                    map (\(OnDemand i) -> i) used
               in if lengthUsed == 0
                     then match (x : rs)
                                (xs,ys)
                     else if lengthUsed == count
-                            then match (UsedReserved e ri ui :
+                            then match (UsedReserved (x ^. reEnv)
+                                                     (x ^?! reReservedInstances)
+                                                     uis :
                                         rs)
                                        (xs,(unmatched ++ unused))
-                            else match (PartialReserved e ri ui :
+                            else match (PartialReserved
+                                          (x ^. reEnv)
+                                          (x ^?! reReservedInstances)
+                                          uis :
                                         rs)
                                        (xs,(unmatched ++ unused))
-        match rs (xs,ys) = rs ++ xs ++ ys
-        isUnmatched UnmatchedReserved{..} = True
-        isUnmatched _ = False
-        reservedMatch (UnmatchedReserved _ r) (UnmatchedInstance i) =
-          (r ^. ri1InstanceType == i ^? i1InstanceType) &&
-          (r ^. ri1AvailabilityZone == i ^. i1Placement ^. pAvailabilityZone)
-        reservedMatch _ _ = False
+        isUnmatchedReserved UnmatchedReserved{..} = True
+        isUnmatchedReserved _ = False
 
-{- MODIFICATIONS -}
-
-matchUnusedReserved :: [Resource] -> [Resource]
-matchUnusedReserved = id
-
-matchPartialReserved :: [Resource] -> [Resource]
-matchPartialReserved = id
-
-{- RESIZING -}
-
-combineUnusedReserved :: [Resource] -> [Resource]
-combineUnusedReserved = id
-
-resizeUnusedReserved :: [Resource] -> [Resource]
-resizeUnusedReserved = id
+matchReserved :: ([Reserved],[OnDemand]) -> ([Reserved],[OnDemand])
+matchReserved = matchUnmatchedReserved isWorkableInstanceMatch .
+                matchUnmatchedReserved isPerfectInstanceMatch -- TODO ADD CONSTRUCTORS FOR DIFFERENT INSTANCES
+  where isPerfectInstanceMatch (UnmatchedReserved _ r) (OnDemand i) =
+          (r ^. ri1AvailabilityZone == i ^. i1Placement ^. pAvailabilityZone) &&
+          (r ^. ri1InstanceType == i ^? i1InstanceType)
+        -- TODO Add network type (Classic vs VPN)
+        isPerfectInstanceMatch _ _ = False
+        isWorkableInstanceMatch (UnmatchedReserved _ r) (OnDemand i) =
+          (r ^. ri1InstanceType == i ^? i1InstanceType)
+        isWorkableInstanceMatch _ _ = False
 
 {- DISPLAY -}
 
-showMaybeText :: Maybe T.Text -> String
-showMaybeText = T.unpack . fromMaybe (T.pack "n/a")
+toCsvMaybeText :: Maybe T.Text -> String
+toCsvMaybeText = T.unpack . fromMaybe (T.pack "n/a")
 
-showMaybeNum :: Maybe Int -> String
-showMaybeNum = show . fromMaybe 0
+toCsvMaybeNum :: Maybe Int -> String
+toCsvMaybeNum = show . fromMaybe 0
 
-showMaybeInstanceType :: forall a. Show a => Maybe a -> [Char]
-showMaybeInstanceType t =
+toCsvMaybeInstanceType :: forall a. Show a => Maybe a -> String
+toCsvMaybeInstanceType t =
   case t of
     Just t' -> map toLower (show t')
     Nothing -> "n/a"
 
-showResource :: Resource -> String
-showResource (UnmatchedReserved _ r) =
-  showMaybeText (r ^. ri1AvailabilityZone) ++
+toCsvReserved :: Reserved -> String
+toCsvReserved (UnmatchedReserved _ r) =
+  toCsvMaybeText (r ^. ri1AvailabilityZone) ++
   "," ++
-  showMaybeInstanceType (r ^. ri1InstanceType) ++
+  toCsvMaybeInstanceType (r ^. ri1InstanceType) ++
   "," ++
   "reserved-instances (unmatched)" ++
   "," ++
-  showMaybeText (r ^. ri1ReservedInstancesId) ++
+  toCsvMaybeText (r ^. ri1ReservedInstancesId) ++
   ",0," ++
-  showMaybeNum (r ^. ri1InstanceCount)
-showResource (PartialReserved _ r is) =
-  showMaybeText (r ^. ri1AvailabilityZone) ++
+  toCsvMaybeNum (r ^. ri1InstanceCount)
+toCsvReserved (PartialReserved _ r is) =
+  toCsvMaybeText (r ^. ri1AvailabilityZone) ++
   "," ++
-  showMaybeInstanceType (r ^. ri1InstanceType) ++
+  toCsvMaybeInstanceType (r ^. ri1InstanceType) ++
   "," ++
   "reserved-instances (partial)" ++
   "," ++
-  showMaybeText (r ^. ri1ReservedInstancesId) ++
+  toCsvMaybeText (r ^. ri1ReservedInstancesId) ++
   "," ++
   show (length is) ++
   "," ++
-  showMaybeNum (r ^. ri1InstanceCount)
-showResource (UsedReserved _ r is) =
-  showMaybeText (r ^. ri1AvailabilityZone) ++
+  toCsvMaybeNum (r ^. ri1InstanceCount)
+toCsvReserved (UsedReserved _ r is) =
+  toCsvMaybeText (r ^. ri1AvailabilityZone) ++
   "," ++
-  showMaybeInstanceType (r ^. ri1InstanceType) ++
+  toCsvMaybeInstanceType (r ^. ri1InstanceType) ++
   "," ++
   "reserved-instances (used)" ++
   "," ++
-  showMaybeText (r ^. ri1ReservedInstancesId) ++
+  toCsvMaybeText (r ^. ri1ReservedInstancesId) ++
   "," ++
   show (length is) ++
   "," ++
-  showMaybeNum (r ^. ri1InstanceCount)
-showResource (UnmatchedInstance i) =
+  toCsvMaybeNum (r ^. ri1InstanceCount)
+toCsvReserved _ = error "TODO"
+
+toCsvOnDemand :: OnDemand -> String
+toCsvOnDemand (OnDemand i) =
   T.unpack (fromMaybe (T.pack "n/a")
                       (i ^. i1Placement ^. pAvailabilityZone)) ++
   "," ++
