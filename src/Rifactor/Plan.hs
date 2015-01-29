@@ -135,20 +135,26 @@ fetchInstances =
 
 interpret :: ([Reserved],[OnDemand])
           -> ([Reserved],[OnDemand])
-interpret = matchReserved
+interpret = matchReserved . splitReserved
 
 matchReserved :: ([Reserved],[OnDemand]) -> ([Reserved],[OnDemand])
 matchReserved =
-  (matchReserved' isWorkableInstanceMatch SplitUnmatchedReserved SplitPartialReserved) .
-  (matchReserved' isPerfectInstanceMatch UsedReserved PartialReserved)
+  matchReserved' isPerfectInstanceMatch UsedReserved PartialReserved
   where isPerfectInstanceMatch (UnmatchedReserved _ r) (OnDemand i) =
           (r ^. ri1AvailabilityZone == i ^. i1Placement ^. pAvailabilityZone) &&
           (r ^. ri1InstanceType == i ^? i1InstanceType)
         -- TODO Add network type (Classic vs VPN)
         isPerfectInstanceMatch _ _ = False
-        isWorkableInstanceMatch (UnmatchedReserved _ r) (OnDemand i) =
+
+splitReserved :: ([Reserved],[OnDemand]) -> ([Reserved],[OnDemand])
+splitReserved =
+  matchReserved' isWorkableInstanceMatch SplitUnmatchedReserved SplitPartialReserved
+  where isWorkableInstanceMatch (UnmatchedReserved _ r) (OnDemand i) =
           (r ^. ri1InstanceType == i ^? i1InstanceType)
         isWorkableInstanceMatch _ _ = False
+
+-- TODO We need more than a constructor here because Splits require both original matching & new matching instances
+-- TODO Is keeping track of partial-XYZ worth the hassle?
 
 matchReserved' :: (Reserved -> OnDemand -> Bool)
                -> (Env -> ReservedInstances -> [Instance] -> Reserved)
