@@ -73,6 +73,7 @@ plan opts =
                        do let (reserved,nodes) = interpret xs
                           traverse_ print reserved
                           traverse_ print nodes
+                       -- TODO print moves & execute them
 
 initEnvs :: Config -> Logger -> IO [Env]
 initEnvs cfg lgr =
@@ -131,61 +132,67 @@ fetchInstances =
                                    [toText ISNRunning]]))
                  pure (map OnDemand (concatMap (view rInstances) xs)))
 
+merge :: (Reserved -> OnDemand -> Bool)
+      -> (Reserved -> [Instance] -> Reserved)
+      -> ([Reserved],[OnDemand])
+      -> ([Reserved],[OnDemand])
+merge isMatching construct (reserved,nodes) =
+  let (unmatchedReserved,otherReserved) =
+        partition isReserved reserved
+  in go otherReserved (unmatchedReserved,nodes)
+  where go rs ([],ys) = (rs,ys)
+        go rs (xs,[]) = (rs ++ xs,[])
+        go rs ((x:xs),ys) =
+          case (partition (isMatching x) ys) of
+            ([],unmatched) ->
+              go (x : rs)
+                 (xs,unmatched)
+            (matched,unmatched) ->
+              let count =
+                    fromMaybe 0 (x ^?! reReservedInstances ^. ri1InstanceCount)
+                  (used,unused) =
+                    splitAt count matched -- TODO off by one?
+                  uis =
+                    map (\(OnDemand i) -> i) used
+              in if length used == 0
+                    then go (x : rs)
+                            (xs,ys)
+                    else go (construct x uis :
+                             rs)
+                            (xs,(unmatched ++ unused))
+        isReserved Reserved{..} = True
+        isReserved _ = False
+
 interpret :: ([Reserved],[OnDemand])
           -> ([Reserved],[OnDemand])
-interpret = matchReserved . splitReserved
+interpret = match . split . combine . resize
 
-matchReserved :: ([Reserved],[OnDemand]) -> ([Reserved],[OnDemand])
-matchReserved =
-  matchUnused isPerfectInstanceMatch constructUsed
-  where isPerfectInstanceMatch (Reserved _ r) (OnDemand i) =
+match :: ([Reserved],[OnDemand]) -> ([Reserved],[OnDemand])
+match =
+  merge isPerfectMatch constructUsed
+  where isPerfectMatch (Reserved _ r) (OnDemand i) =
           (r ^. ri1AvailabilityZone == i ^. i1Placement ^. pAvailabilityZone) &&
           (r ^. ri1InstanceType == i ^? i1InstanceType)
         -- TODO Add network type (Classic vs VPN)
-        isPerfectInstanceMatch _ _ = False
+        isPerfectMatch _ _ = False
         constructUsed r uis =
           (UsedReserved (r ^. reEnv)
                         (r ^?! reReservedInstances)
                         uis)
 
-splitReserved :: ([Reserved],[OnDemand]) -> ([Reserved],[OnDemand])
-splitReserved =
-  matchUnused isWorkableInstanceMatch constructMove
-  where isWorkableInstanceMatch (Reserved _ r) (OnDemand i) =
+split :: ([Reserved],[OnDemand]) -> ([Reserved],[OnDemand])
+split =
+  merge isWorkableMatch constructMove
+  where isWorkableMatch (Reserved _ r) (OnDemand i) =
           (r ^. ri1InstanceType == i ^? i1InstanceType)
-        isWorkableInstanceMatch _ _ = False
+        isWorkableMatch _ _ = False
         constructMove r uis =
           (MoveReserved (r ^. reEnv)
                         (r ^?! reReservedInstances)
                         uis)
 
-matchUnused :: (Reserved -> OnDemand -> Bool)
-            -> (Reserved -> [Instance] -> Reserved)
-            -> ([Reserved],[OnDemand])
-            -> ([Reserved],[OnDemand])
-matchUnused isMatchingInstances f (reserved,nodes) =
-  let (unmatchedReserved,otherReserved) =
-        partition isReserved reserved
-  in match otherReserved (unmatchedReserved,nodes)
-  where match rs ([],ys) = (rs,ys)
-        match rs (xs,[]) = (rs ++ xs,[])
-        match rs ((x:xs),ys) =
-          case (partition (isMatchingInstances x) ys) of
-            ([],unmatched) ->
-              match (x : rs)
-                    (xs,unmatched)
-            (matched,unmatched) ->
-              let count =
-                    fromMaybe 0 (x ^?! reReservedInstances ^. ri1InstanceCount)
-                  (used,unused) =
-                    splitAt count matched
-                  uis =
-                    map (\(OnDemand i) -> i) used
-              in if length used == 0
-                    then match (x : rs)
-                               (xs,ys)
-                    else match (f x uis :
-                                rs)
-                               (xs,(unmatched ++ unused))
-        isReserved Reserved{..} = True
-        isReserved _ = False
+combine :: ([Reserved],[OnDemand]) -> ([Reserved],[OnDemand])
+combine = id
+
+resize :: ([Reserved],[OnDemand]) -> ([Reserved],[OnDemand])
+resize = id
