@@ -53,6 +53,10 @@ data Reserved
   | MoveReserved {_reEnv :: Env
                  ,_reReservedInstances :: ReservedInstances
                  ,_reInstances :: [Instance]}
+  | SplitReserved {_reEnv :: Env
+                  ,_reReservedInstances :: ReservedInstances
+                  ,_reInstances :: [Instance]
+                  ,_reNewInstances :: [Instance]}
   | CombineReserved {_reEnv :: Env
                     ,_reReservedInstances' :: [ReservedInstances]}
   | ResizeReserved {_reEnv :: Env

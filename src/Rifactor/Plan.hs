@@ -165,8 +165,10 @@ merge isMatching construct (reserved,nodes) =
 
 interpret :: ([Reserved],[OnDemand])
           -> ([Reserved],[OnDemand])
-interpret = match . split . combine . resize
+interpret = match . move . split . combine . resize
 
+-- | Match unused ReservedInstances with OnDemand nodes that
+-- match by instance type, network type & availability zone.
 match :: ([Reserved],[OnDemand]) -> ([Reserved],[OnDemand])
 match =
   merge isPerfectMatch constructUsed
@@ -180,8 +182,10 @@ match =
                         (r ^?! reReservedInstances)
                         uis)
 
-split :: ([Reserved],[OnDemand]) -> ([Reserved],[OnDemand])
-split =
+-- | Move unused ReservedInstances around to accommidate nodes that
+-- match by instance type.
+move :: ([Reserved],[OnDemand]) -> ([Reserved],[OnDemand])
+move =
   merge isWorkableMatch constructMove
   where isWorkableMatch (Reserved _ r) (OnDemand i) =
           (r ^. ri1InstanceType == i ^? i1InstanceType)
@@ -191,8 +195,18 @@ split =
                         (r ^?! reReservedInstances)
                         uis)
 
+-- | Split used ReservedInstances up that have remaining capacity but
+-- still have slots left for nodes with the same instance type but
+-- with other availability zones or network types.
+split :: ([Reserved],[OnDemand]) -> ([Reserved],[OnDemand])
+split = id
+
+-- | Combine Reserved Instances that aren't used with other
+-- ReservedInstances with the same stop date (& hour).
 combine :: ([Reserved],[OnDemand]) -> ([Reserved],[OnDemand])
 combine = id
 
+-- | Resize Reserved Instances that have capacity if we can accomidate
+-- nodes of different instance types.
 resize :: ([Reserved],[OnDemand]) -> ([Reserved],[OnDemand])
 resize = id
