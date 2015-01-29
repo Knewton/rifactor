@@ -55,8 +55,6 @@ specMatch =
             mkInstances 20 "us-east-1a" M2_4XLarge
           let (reserved',onDemand') =
                 match (reserved,onDemand)
-              isUsed (UsedReserved{..}) = True
-              isUsed _ = True
           all isUsed reserved' `shouldBe`
             True
           onDemand' `shouldBe` []
@@ -67,8 +65,6 @@ specMatch =
             mkInstances 20 "us-east-1b" M2_4XLarge
           let (reserved',onDemand') =
                 match (reserved,onDemand)
-              isNotUsed (Reserved{..}) = True
-              isNotUsed _ = True
           all isNotUsed reserved' `shouldBe`
             True
           length onDemand' `shouldBe` 20
@@ -84,11 +80,17 @@ specMove =
             mkInstances 20 "us-east-1b" M2_4XLarge
           let (reserved',onDemand') =
                 move (reserved,onDemand)
-              isUsed (UsedReserved{..}) = True
-              isUsed _ = True
           all isUsed reserved' `shouldBe`
             True
           onDemand' `shouldBe` []
+
+isNotUsed :: Reserved -> Bool
+isNotUsed (Reserved{..}) = True
+isNotUsed _ = True
+
+isUsed :: Reserved -> Bool
+isUsed (UsedReserved{..}) = True
+isUsed _ = True
 
 riFixture :: Int -> String -> InstanceType -> UTCTime -> ReservedInstances
 riFixture count az itype _time =
