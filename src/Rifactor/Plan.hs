@@ -153,18 +153,15 @@ matchReserved =
 
 splitReserved :: ([Reserved],[OnDemand]) -> ([Reserved],[OnDemand])
 splitReserved =
-  matchReserved' isWorkableInstanceMatch constructSplit
+  matchReserved' isWorkableInstanceMatch constructMove
   where isWorkableInstanceMatch (Reserved _ r) (OnDemand i) =
           (r ^. ri1InstanceType == i ^? i1InstanceType)
         isWorkableInstanceMatch _ _ = False
-        constructSplit r uis =
-          (SplitReserved
+        constructMove r uis =
+          (MoveReserved
              (r ^. reEnv)
              ((r ^. reInstances) ++
               uis))
-
--- TODO We need more than a constructor here because Splits require both original matching & new matching instances
--- TODO Is keeping track of partial-XYZ worth the hassle?
 
 matchReserved' :: (Reserved -> OnDemand -> Bool)
                -> (Reserved -> Env -> ReservedInstances -> [Instance] -> Reserved)

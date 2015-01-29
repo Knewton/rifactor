@@ -49,9 +49,9 @@ data Reserved
   | UsedReserved {_reEnv :: Env
                  ,_reReservedInstances :: ReservedInstances
                  ,_reInstances :: [Instance]}
-  | SplitReserved {_reEnv :: Env
-                  ,_reReservedInstances :: ReservedInstances
-                  ,_reInstances :: [Instance]}
+  | MoveReserved {_reEnv :: Env
+                 ,_reReservedInstances :: ReservedInstances
+                 ,_reInstances :: [Instance]}
   | CombineReserved {_reEnv :: Env
                     ,_reReservedInstances' :: [ReservedInstances]}
   | ResizeReserved {_reEnv :: Env
