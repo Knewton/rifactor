@@ -94,8 +94,8 @@ test-suite test
                      , transformers
                      -- Tests
                      , tasty
-                     , tasty-hunit
                      , tasty-hspec
+                     , tasty-hunit
                      , tasty-quickcheck
                      , tasty-smallcheck
                      , tasty-th
