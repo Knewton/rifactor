@@ -18,14 +18,9 @@
 -- Portability : non-portable (GHC extensions)
 
 import           Control.Applicative
-import           Control.Exception
 import           Control.Lens
-import           Control.Monad
-import           Control.Monad.IO.Class
 import           Data.Time
 import qualified Data.Text as T
-import           Data.Time.Clock
-import           Network.AWS.Data
 import           Network.AWS.EC2
 import           Rifactor.Plan
 import           Rifactor.Types
@@ -81,13 +76,19 @@ specMove =
             True
           onDemand' `shouldBe` []
 
-isNotUsed :: Reserved -> Bool
-isNotUsed (Reserved{..}) = True
-isNotUsed _ = True
+mkReserved :: Int -> String -> Int -> InstanceType -> IO [Reserved]
+mkReserved rCount az iCount itype =
+  do time <- getCurrentTime
+     pure (map (\_ ->
+                  Reserved undefined (riFixture iCount az itype time))
+               ([1 .. rCount] :: [Int]))
 
-isUsed :: Reserved -> Bool
-isUsed (UsedReserved{..}) = True
-isUsed _ = True
+mkInstances :: Int -> String -> InstanceType -> IO [OnDemand]
+mkInstances iCount az itype =
+  mapM (\instanceNum ->
+          do time <- getCurrentTime
+             pure (OnDemand (iFixture az itype time (show instanceNum))))
+       ([1 .. iCount] :: [Int])
 
 riFixture :: Int -> String -> InstanceType -> UTCTime -> ReservedInstances
 riFixture count az itype _time =
@@ -115,16 +116,10 @@ iFixture az itype time iid =
              Xen
              False)
 
-mkReserved :: Int -> String -> Int -> InstanceType -> IO [Reserved]
-mkReserved rCount az iCount itype =
-  do time <- getCurrentTime
-     pure (map (\_ ->
-                  Reserved undefined (riFixture iCount az itype time))
-               ([1 .. rCount] :: [Int]))
+isNotUsed :: Reserved -> Bool
+isNotUsed (Reserved{..}) = True
+isNotUsed _ = True
 
-mkInstances :: Int -> String -> InstanceType -> IO [OnDemand]
-mkInstances iCount az itype =
-  mapM (\instanceNum ->
-          do time <- getCurrentTime
-             pure (OnDemand (iFixture az itype time (show instanceNum))))
-       ([1 .. iCount] :: [Int])
+isUsed :: Reserved -> Bool
+isUsed (UsedReserved{..}) = True
+isUsed _ = True
