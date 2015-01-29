@@ -23,6 +23,7 @@ library
   hs-source-dirs:      src
   exposed-modules:     Rifactor.Types
                        Rifactor.Plan
+  ghc-options:         -Wall
   build-depends:       base          >=4.7   && <4.8
                      , aeson
                      , amazonka      >=0.2.2 && <0.3
@@ -72,6 +73,7 @@ test-suite test
   hs-source-dirs:      tests
   main-is:             test.hs
   type:                exitcode-stdio-1.0
+  ghc-options:         -Wall
   build-depends:       base          >=4.7   && <4.8
                      , Cabal                    <1.22
                      , aeson
