@@ -35,25 +35,21 @@ data Config =
 data RIEnv =
   RIEnv {_reserved :: [ReservedInstances]
         ,_instances :: [Instance]
-        ,_modified :: [ReservedInstancesModification]
         ,_env :: Env}
 
 riEnv :: Env -> RIEnv
-riEnv = RIEnv [] [] []
+riEnv = RIEnv [] []
 
 data Resource
   = UnmatchedInstance {_reInstance :: Instance}
   | UnmatchedReserved {_reEnv :: Env
                       ,_reReservedInstances :: ReservedInstances}
-  | UnmatchedPending {_reModification :: ReservedInstancesModification}
   | PartialReserved {_reEnv :: Env
                     ,_reReservedInstances :: ReservedInstances
                     ,_reInstances :: [Instance]}
   | UsedReserved {_reEnv :: Env
                  ,_reReservedInstances :: ReservedInstances
                  ,_reInstances :: [Instance]}
-  | PendingModification {_reModification :: ReservedInstancesModification
-                        ,_reInstances :: [Instance]}
 
 {- Lenses -}
 

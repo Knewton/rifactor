@@ -16,7 +16,6 @@ module Rifactor.Plan where
 
 import           Control.Applicative
 import           Control.Lens
-import           Control.Monad (foldM, forM)
 import           Control.Monad.IO.Class ()
 import           Control.Monad.Trans.AWS hiding (accessKey, secretKey)
 import           Control.Monad.Trans.Resource (runResourceT)
@@ -27,6 +26,8 @@ import           Data.Conduit (($$), ($=))
 import qualified Data.Conduit.Attoparsec as C (sinkParser)
 import qualified Data.Conduit.Binary as C (sourceFile)
 import qualified Data.Conduit.List as C
+import           Data.Foldable (traverse_)
+import           Data.Traversable (for)
 import           Data.List (partition)
 import           Data.Maybe (fromMaybe)
 import qualified Data.Text as T
@@ -54,26 +55,45 @@ plan opts =
               getEnv NorthVirginia
                      (FromKeys (AccessKey B.empty)
                                (SecretKey B.empty))
-            eRiEnvs <-
-              initEnvs cfg lgr >>=
-              runAWST dummyEnv . fetchFromAmazon
-            case eRiEnvs of
+            riEnvs <- initEnvs cfg lgr
+            pending <-
+              runAWST dummyEnv (checkPendingModifications riEnvs)
+            case pending of
               (Left err) -> print err >> exitFailure
-              (Right riEnvs') ->
-                mapM_ (putStrLn . showResource)
-                      (interpret riEnvs')
+              _ ->
+                do eRiEnvs <-
+                     runAWST dummyEnv (fetchFromAmazon riEnvs)
+                   case eRiEnvs of
+                     (Left err) -> print err >> exitFailure
+                     (Right es) ->
+                       traverse_ (putStrLn . showResource)
+                                 (interpret es)
 
 initEnvs :: Config -> Logger -> IO [RIEnv]
 initEnvs cfg lgr =
-  forM
-    [(a,r) | r <- (cfg ^. regions)
-           , a <- (cfg ^. accounts)]
-    (\(a,r) ->
-       riEnv <$>
-       (getEnv r
-               (FromKeys (AccessKey (B.pack (a ^. accessKey)))
-                         (SecretKey (B.pack (a ^. secretKey)))) <&>
-        (envLogger .~ lgr)))
+  for [(a,r) | r <- (cfg ^. regions)
+             , a <- (cfg ^. accounts)]
+      (\(a,r) ->
+         riEnv <$>
+         (getEnv r
+                 (FromKeys (AccessKey (B.pack (a ^. accessKey)))
+                           (SecretKey (B.pack (a ^. secretKey)))) <&>
+          (envLogger .~ lgr)))
+
+checkPendingModifications :: [RIEnv] -> AWS ()
+checkPendingModifications =
+  traverse_ (\e ->
+               runAWST (e ^. env)
+                       (do rims <-
+                             view drimrReservedInstancesModifications <$>
+                             send (describeReservedInstancesModifications &
+                                   (drimFilters .~
+                                    [filter' "status" &
+                                     fValues .~
+                                     [T.pack "processing"]]))
+                           if null rims
+                              then return ()
+                              else error "There are pending RI modifications."))
 
 {- TEST FNS -}
 
@@ -129,92 +149,45 @@ printReservedInstanceModifications env' =
 {- QUERY AMAZON -}
 
 fetchFromAmazon :: [RIEnv] -> AWS [RIEnv]
-fetchFromAmazon e = fetchRunningInstances e >>= fetchActiveReservedInstances >>=
-                    fetchPendingModifications
-
-fetchPendingModifications :: [RIEnv] -> AWS [RIEnv]
-fetchPendingModifications =
-  foldM (\a e ->
-           do is <-
-                hoistEither =<<
-                runAWST (e ^. env)
-                        (view drimrReservedInstancesModifications <$>
-                         send (describeReservedInstancesModifications &
-                               (drimFilters .~
-                                [filter' "status" &
-                                 fValues .~
-                                 [T.pack "processing"]])))
-              mapM_ (info . T.pack . show) is
-              return ((e & modified .~ is) :
-                      a))
-        []
+fetchFromAmazon e = fetchRunningInstances e >>= fetchActiveReservedInstances
 
 fetchActiveReservedInstances :: [RIEnv] -> AWS [RIEnv]
 fetchActiveReservedInstances =
-  foldM (\a e ->
-           do is <-
-                hoistEither =<<
-                runAWST (e ^. env)
-                        (view drirReservedInstances <$>
-                         send (describeReservedInstances & driFilters .~
-                               [filter' "state" &
-                                fValues .~
-                                [toText RISActive]]))
-              return ((e & reserved .~ is) :
-                      a))
-        []
+  traverse (\e ->
+              do xs <-
+                   hoistEither =<<
+                   runAWST (e ^. env)
+                           (view drirReservedInstances <$>
+                            send (describeReservedInstances & driFilters .~
+                                  [filter' "state" &
+                                   fValues .~
+                                   [toText RISActive]]))
+                 pure (e & reserved .~ xs))
 
 fetchRunningInstances :: [RIEnv] -> AWS [RIEnv]
 fetchRunningInstances =
-  foldM (\a e ->
-           do is <-
-                hoistEither =<<
-                runAWST (e ^. env)
-                        (view dirReservations <$>
-                         send (describeInstances & di1Filters .~
-                               [filter' "instance-state-name" &
-                                fValues .~
-                                [toText ISNRunning]]))
-              return ((e & instances .~
-                       (concatMap (view rInstances) is)) :
-                      a))
-        []
+  traverse (\e ->
+              do xs <-
+                   hoistEither =<<
+                   runAWST (e ^. env)
+                           (view dirReservations <$>
+                            send (describeInstances & di1Filters .~
+                                  [filter' "instance-state-name" &
+                                   fValues .~
+                                   [toText ISNRunning]]))
+                 pure (e & instances .~
+                       (concatMap (view rInstances) xs)))
 
 {- INTERPRET DATA -}
 
 interpret :: [RIEnv] -> [Resource]
 interpret es =
-  (filterPendingModifiedReserved . matchPendingModifications . matchActiveReserved)
+  matchActiveReserved
     ([UnmatchedReserved (e ^. env)
                         r | e <- es
                           , r <- e ^. reserved] ++
      [UnmatchedInstance i | e <- es
-                          , i <- e ^. instances] ++
-     [UnmatchedPending m | e <- es
-                         , m <- e ^. modified])
-
-filterPendingModifiedReserved :: [Resource] -> [Resource]
-filterPendingModifiedReserved =
-  match [] .
-  partition isPending
-  where match rs ([],ys) = rs ++ ys
-        match rs (xs,[]) = rs ++ xs
-        match rs ((x:xs),ys) =
-          let (_,unmatched) =
-                (partition (pendingMatch x) ys)
-          in match (x : rs)
-                   (xs,unmatched)
-        isPending UnmatchedPending{..} = True
-        isPending _ = False
-        pendingMatch (UnmatchedPending m) (UnmatchedReserved _ r) =
-          elemOf traverse
-                 (r ^. ri1ReservedInstancesId)
-                 (m ^. rimReservedInstancesIds ^..
-                  (traverse . riiReservedInstancesId))
-        pendingMatch _ _ = False
-
-matchPendingModifications :: [Resource] -> [Resource]
-matchPendingModifications = id
+                          , i <- e ^. instances])
 
 matchActiveReserved :: [Resource] -> [Resource]
 matchActiveReserved =
@@ -285,8 +258,6 @@ showMaybeInstanceType t =
     Nothing -> "n/a"
 
 showResource :: Resource -> String
-showResource (UnmatchedPending r) = show r
-showResource (PendingModification _ r) = show r
 showResource (UnmatchedReserved _ r) =
   showMaybeText (r ^. ri1AvailabilityZone) ++
   "," ++
