@@ -139,35 +139,33 @@ interpret = matchReserved . splitReserved
 
 matchReserved :: ([Reserved],[OnDemand]) -> ([Reserved],[OnDemand])
 matchReserved =
-  matchReserved' isPerfectInstanceMatch constructUsed
+  matchUnused isPerfectInstanceMatch constructUsed
   where isPerfectInstanceMatch (Reserved _ r) (OnDemand i) =
           (r ^. ri1AvailabilityZone == i ^. i1Placement ^. pAvailabilityZone) &&
           (r ^. ri1InstanceType == i ^? i1InstanceType)
         -- TODO Add network type (Classic vs VPN)
         isPerfectInstanceMatch _ _ = False
         constructUsed r uis =
-          (UsedReserved
-             (r ^. reEnv)
-             ((r ^. reInstances) ++
-              uis))
+          (UsedReserved (r ^. reEnv)
+                        (r ^?! reReservedInstances)
+                        uis)
 
 splitReserved :: ([Reserved],[OnDemand]) -> ([Reserved],[OnDemand])
 splitReserved =
-  matchReserved' isWorkableInstanceMatch constructMove
+  matchUnused isWorkableInstanceMatch constructMove
   where isWorkableInstanceMatch (Reserved _ r) (OnDemand i) =
           (r ^. ri1InstanceType == i ^? i1InstanceType)
         isWorkableInstanceMatch _ _ = False
         constructMove r uis =
-          (MoveReserved
-             (r ^. reEnv)
-             ((r ^. reInstances) ++
-              uis))
+          (MoveReserved (r ^. reEnv)
+                        (r ^?! reReservedInstances)
+                        uis)
 
-matchReserved' :: (Reserved -> OnDemand -> Bool)
-               -> (Reserved -> Env -> ReservedInstances -> [Instance] -> Reserved)
-               -> ([Reserved],[OnDemand])
-               -> ([Reserved],[OnDemand])
-matchReserved' isMatchingInstances f (reserved,nodes) =
+matchUnused :: (Reserved -> OnDemand -> Bool)
+            -> (Reserved -> [Instance] -> Reserved)
+            -> ([Reserved],[OnDemand])
+            -> ([Reserved],[OnDemand])
+matchUnused isMatchingInstances f (reserved,nodes) =
   let (unmatchedReserved,otherReserved) =
         partition isReserved reserved
   in match otherReserved (unmatchedReserved,nodes)
@@ -207,7 +205,7 @@ toCsvMaybeInstanceType t =
     Nothing -> "n/a"
 
 toCsvReserved :: Reserved -> String
-toCsvReserved (UnmatchedReserved _ r) =
+toCsvReserved (Reserved _ r) =
   toCsvMaybeText (r ^. ri1AvailabilityZone) ++
   "," ++
   toCsvMaybeInstanceType (r ^. ri1InstanceType) ++
@@ -216,18 +214,6 @@ toCsvReserved (UnmatchedReserved _ r) =
   "," ++
   toCsvMaybeText (r ^. ri1ReservedInstancesId) ++
   ",0," ++
-  toCsvMaybeNum (r ^. ri1InstanceCount)
-toCsvReserved (PartialReserved _ r is) =
-  toCsvMaybeText (r ^. ri1AvailabilityZone) ++
-  "," ++
-  toCsvMaybeInstanceType (r ^. ri1InstanceType) ++
-  "," ++
-  "reserved-instances (partial)" ++
-  "," ++
-  toCsvMaybeText (r ^. ri1ReservedInstancesId) ++
-  "," ++
-  show (length is) ++
-  "," ++
   toCsvMaybeNum (r ^. ri1InstanceCount)
 toCsvReserved (UsedReserved _ r is) =
   toCsvMaybeText (r ^. ri1AvailabilityZone) ++
