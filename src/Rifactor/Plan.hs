@@ -211,9 +211,9 @@ combineReserved (reserved,onDemand) =
   let (modified,notModified) =
         partition isModifiedReserved reserved
       reducedNotModified =
-        concatMap combine (groupBy isSameDateAndRegion notModified)
+        concatMap combine (groupBy isWorkableMatch notModified)
   in (modified ++ reducedNotModified,onDemand)
-  where isSameDateAndRegion x y =
+  where isWorkableMatch x y =
           ((x ^?! reReservedInstances ^. ri1End) ==
            (y ^?! reReservedInstances ^. ri1End)) &&
           ((x ^. reEnv ^. envRegion) ==
