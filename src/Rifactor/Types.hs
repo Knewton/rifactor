@@ -72,6 +72,10 @@ data Reserved
                    ,_reInstances :: [Instance]}
   deriving (Eq)
 
+type Model = ([Reserved],[OnDemand])
+
+type Transition = Model -> Model
+
 {- Lenses -}
 
 $(makeLenses ''Account)

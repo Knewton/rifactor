@@ -130,8 +130,7 @@ fetchInstances =
 mergeInstances :: (Reserved -> Bool)
                -> (Reserved -> OnDemand -> Bool)
                -> (Reserved -> [Instance] -> Reserved)
-               -> ([Reserved],[OnDemand])
-               -> ([Reserved],[OnDemand])
+               -> Transition
 mergeInstances isMatchingReserved isMatchingInstance convert (reserved,nodes) =
   let (unmatchedReserved,otherReserved) =
         partition isMatchingReserved reserved
@@ -156,13 +155,12 @@ mergeInstances isMatchingReserved isMatchingInstance convert (reserved,nodes) =
                              rs)
                             (xs,(unused ++ unmatched))
 
-interpret :: ([Reserved],[OnDemand])
-          -> ([Reserved],[OnDemand])
+interpret :: Transition
 interpret = moveReserved . matchReserved
 
 -- | Match unused ReservedInstances with OnDemand nodes that
 -- match by instance type, network type & availability zone.
-matchReserved :: ([Reserved],[OnDemand]) -> ([Reserved],[OnDemand])
+matchReserved :: Transition
 matchReserved =
   mergeInstances isReserved isPerfectMatch convertToUsed
   where isPerfectMatch (Reserved _ r) (OnDemand i) =
@@ -177,7 +175,7 @@ matchReserved =
 
 -- | Move unused ReservedInstances around to accommidate nodes that
 -- match by instance type.
-moveReserved :: ([Reserved],[OnDemand]) -> ([Reserved],[OnDemand])
+moveReserved :: Transition
 moveReserved =
   mergeInstances isReserved isWorkableMatch convertToMove
   where isWorkableMatch (Reserved _ r) (OnDemand i) =
@@ -191,7 +189,7 @@ moveReserved =
 -- | Split used ReservedInstances up that have remaining capacity but
 -- still have slots left for nodes with the same instance type but
 -- with other availability zones or network types.
-splitReserved :: ([Reserved],[OnDemand]) -> ([Reserved],[OnDemand])
+splitReserved :: Transition
 splitReserved =
   mergeInstances isUsedReserved isWorkableMatch convertToSplit
   where isWorkableMatch (UsedReserved _ r is) (OnDemand i) =
@@ -208,10 +206,10 @@ splitReserved =
 
 -- | Combine Reserved Instances that aren't used with other
 -- ReservedInstances with the same stop date (& hour).
-combineReserved :: ([Reserved],[OnDemand]) -> ([Reserved],[OnDemand])
+combineReserved :: Transition
 combineReserved = id
 
 -- | Resize Reserved Instances that have capacity if we can accomidate
 -- nodes of different instance types.
-resizeReserved :: ([Reserved],[OnDemand]) -> ([Reserved],[OnDemand])
+resizeReserved :: Transition
 resizeReserved = id
