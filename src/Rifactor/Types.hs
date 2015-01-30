@@ -130,24 +130,29 @@ instance Summarizable Instance where
 
 isReserved :: Reserved -> Bool
 isReserved (Reserved{..}) = True
-isReserved _ = True
+isReserved _ = False
 
 isUsedReserved :: Reserved -> Bool
 isUsedReserved (UsedReserved{..}) = True
-isUsedReserved _ = True
+isUsedReserved _ = False
 
 isMoveReserved :: Reserved -> Bool
 isMoveReserved (MoveReserved{..}) = True
-isMoveReserved _ = True
+isMoveReserved _ = False
 
 isSplitReserved :: Reserved -> Bool
 isSplitReserved (SplitReserved{..}) = True
-isSplitReserved _ = True
+isSplitReserved _ = False
 
 isCombineReserved :: Reserved -> Bool
 isCombineReserved (CombineReserved{..}) = True
-isCombineReserved _ = True
+isCombineReserved _ = False
+
+isResizeReserved :: Reserved -> Bool
+isResizeReserved (ResizeReserved{..}) = True
+isResizeReserved _ = False
 
 isModifiedReserved :: Reserved -> Bool
-isModifiedReserved r = isSplitReserved r || isCombineReserved r ||
-                                            isMoveReserved r
+isModifiedReserved r =
+  (isSplitReserved r || isCombineReserved r || isMoveReserved r ||
+                                               isResizeReserved r)
