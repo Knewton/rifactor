@@ -20,12 +20,14 @@
 
 module Rifactor.Types where
 
-import BasePrelude
-import Control.Lens
-import Data.Aeson.TH (deriveJSON)
-import Network.AWS
-import Network.AWS.EC2.Types hiding (Region)
-import Rifactor.Types.Internal (deriveOptions)
+import           BasePrelude
+import           Control.Lens
+import           Data.Aeson.TH (deriveJSON)
+import qualified Data.Text as T
+import           Network.AWS
+import           Network.AWS.Data (toText)
+import           Network.AWS.EC2.Types hiding (Region)
+import           Rifactor.Types.Internal (deriveOptions)
 
 data Options =
   Options {_file :: FilePath
@@ -43,7 +45,12 @@ data Config =
 
 data OnDemand =
   OnDemand {_odInstance :: Instance}
-  deriving (Show, Eq)
+  deriving (Eq)
+
+instance Eq Env
+
+instance Show Env where
+  show e = show (e ^. envRegion)
 
 data Reserved
   = Reserved {_reEnv :: Env
@@ -63,12 +70,7 @@ data Reserved
   | ResizeReserved {_reEnv :: Env
                    ,_reReservedInstances :: ReservedInstances
                    ,_reInstances :: [Instance]}
-  deriving (Show,Eq)
-
-{- Instances -}
-
-instance Show Env
-instance Eq Env
+  deriving (Eq)
 
 {- Lenses -}
 
@@ -84,6 +86,50 @@ $(deriveJSON deriveOptions ''Account)
 $(deriveJSON deriveOptions ''Config)
 $(deriveJSON deriveOptions ''Options)
 $(deriveJSON deriveOptions ''Region)
+
+{- Classes/Instances -}
+
+class Details a where
+  details :: a -> T.Text
+
+instance Details Reserved where
+  details (MoveReserved _ r is) =
+    "move " <>
+    (details r) <>
+    " for [" <>
+    T.intercalate (T.pack ", ")
+                  (map details is) <>
+    "]"
+  details _ = error "TODO"
+
+instance Details OnDemand where
+  details x =
+    "on-demand " <>
+    details (x ^. odInstance)
+
+instance Details ReservedInstances where
+  details x =
+    "reserved-instances#" <>
+    fromMaybe T.empty (x ^. ri1ReservedInstancesId) <>
+    "|" <>
+    maybe T.empty toText (x ^. ri1InstanceType) <>
+    "|" <>
+    fromMaybe T.empty (x ^. ri1AvailabilityZone)
+
+instance Details Instance where
+  details x =
+    "instance#" <>
+    (x ^. i1InstanceId) <>
+    "|" <>
+    toText (x ^. i1InstanceType) <>
+    "|" <>
+    maybe T.empty toText (x ^. i1Placement ^. pAvailabilityZone)
+
+instance Show Reserved where
+  show = T.unpack . details
+
+instance Show OnDemand where
+  show = T.unpack . details
 
 {- Misc -}
 
