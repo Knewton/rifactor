@@ -90,7 +90,7 @@ checkPendingModifications =
                                      [T.pack "processing"]]))
                            if null rims
                               then pure ()
-                              else error "There are pending RI modifications."))
+                              else ಠ_ಠ "There are pending RI modifications."))
 
 fetchFromAmazon :: [Env] -> AWS Model
 fetchFromAmazon es =
@@ -227,7 +227,7 @@ combineReserved (reserved,onDemand) =
 -- | Resize Reserved Instances that have capacity if we can accomidate
 -- nodes of different instance types.
 resizeReserved :: Transition
-resizeReserved = error "TODO"
+resizeReserved = ಠ_ಠ "TODO"
 
 noKeysEnv :: IO Env
 noKeysEnv =

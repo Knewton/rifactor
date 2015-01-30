@@ -74,6 +74,9 @@ type Model = ([Reserved],[OnDemand])
 
 type Transition = Model -> Model
 
+ಠ_ಠ :: String -> a
+ಠ_ಠ = error
+
 {- Lenses -}
 
 $(makeLenses ''Account)
