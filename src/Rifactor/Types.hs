@@ -44,7 +44,8 @@ data Config =
          ,_regions :: [Region]}
 
 data OnDemand =
-  OnDemand {_odInstance :: Instance}
+  OnDemand {_odEnv :: Env
+           ,_odInstance :: Instance}
   deriving (Eq)
 
 instance Eq Env

@@ -122,7 +122,7 @@ fetchInstances =
                                   [filter' "instance-state-name" &
                                    fValues .~
                                    [toText ISNRunning]]))
-                 pure (map OnDemand (concatMap (view rInstances) xs)))
+                 pure (map (OnDemand e) (concatMap (view rInstances) xs)))
 
 mergeInstances :: (Reserved -> Bool)
                -> (Reserved -> OnDemand -> Bool)
@@ -160,9 +160,10 @@ interpret = moveReserved . matchReserved
 matchReserved :: Transition
 matchReserved =
   mergeInstances isReserved isPerfectMatch convertToUsed
-  where isPerfectMatch (Reserved _ r) (OnDemand i) =
+  where isPerfectMatch (Reserved re r) (OnDemand ie i) =
           (r ^. ri1AvailabilityZone == i ^. i1Placement ^. pAvailabilityZone) &&
-          (r ^. ri1InstanceType == i ^? i1InstanceType)
+          (r ^. ri1InstanceType == i ^? i1InstanceType) &&
+          (re ^. envRegion == ie ^. envRegion)
         -- TODO Add network type (Classic vs VPN)
         isPerfectMatch _ _ = False
         convertToUsed r uis =
@@ -175,8 +176,9 @@ matchReserved =
 moveReserved :: Transition
 moveReserved =
   mergeInstances isReserved isWorkableMatch convertToMove
-  where isWorkableMatch (Reserved _ r) (OnDemand i) =
-          (r ^. ri1InstanceType == i ^? i1InstanceType)
+  where isWorkableMatch (Reserved re r) (OnDemand ie i) =
+          (r ^. ri1InstanceType == i ^? i1InstanceType) &&
+          (re ^. envRegion == ie ^. envRegion)
         isWorkableMatch _ _ = False
         convertToMove r uis =
           (MoveReserved (r ^. reEnv)
@@ -189,8 +191,9 @@ moveReserved =
 splitReserved :: Transition
 splitReserved =
   mergeInstances isUsedReserved isWorkableMatch convertToSplit
-  where isWorkableMatch (UsedReserved _ r is) (OnDemand i) =
+  where isWorkableMatch (UsedReserved re r is) (OnDemand ie i) =
           (r ^. ri1InstanceType == i ^? i1InstanceType) &&
+          (re ^. envRegion == ie ^. envRegion) &&
           maybe False
                 ((<) (length is))
                 (r ^. ri1InstanceCount)
