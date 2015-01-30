@@ -81,11 +81,9 @@ moveSpec =
                 move (reserved,onDemand)
           all isMoveReserved moveReserved `shouldBe`
             True
-          all (\r ->
-                 length (r ^. reInstances) ==
-                 10)
-              (moveReserved) `shouldBe`
-            True
+          traverse_ (\r ->
+                     length (r ^. reNewInstances) `shouldBe` 10)
+              moveReserved
           restOfOnDemand `shouldBe` empty
 
 splitSpec :: IO TestTree
