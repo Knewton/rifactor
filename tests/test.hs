@@ -180,3 +180,12 @@ iFixture az itype time iid =
              Hvm
              Xen
              False)
+
+instance Show Env where
+  show e = show (e ^. envRegion)
+
+instance Show Reserved where
+  show = T.unpack . summary
+
+instance Show OnDemand where
+  show = T.unpack . summary

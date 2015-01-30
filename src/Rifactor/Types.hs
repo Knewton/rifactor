@@ -49,9 +49,6 @@ data OnDemand =
 
 instance Eq Env
 
-instance Show Env where
-  show e = show (e ^. envRegion)
-
 data Reserved
   = Reserved {_reEnv :: Env
              ,_reReservedInstances :: ReservedInstances}
@@ -128,12 +125,6 @@ instance Summarizable Instance where
     toText (x ^. i1InstanceType) <>
     "|" <>
     maybe T.empty toText (x ^. i1Placement ^. pAvailabilityZone)
-
-instance Show Reserved where
-  show = T.unpack . details
-
-instance Show OnDemand where
-  show = T.unpack . details
 
 {- Misc -}
 
