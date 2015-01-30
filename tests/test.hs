@@ -49,22 +49,22 @@ matchSpec =
                  mkReserved 2 "us-east-1a" 10 M2_4XLarge
                onDemand <-
                  mkInstances 20 "us-east-1a" M2_4XLarge
-               let (usedReserved,restOfOnDemand) =
-               all isUsedReserved usedReserved `shouldBe`
+               let (r,rest) =
                      matchReserved (reserved,onDemand)
+               all isUsedReserved r `shouldBe`
                  True
-               restOfOnDemand `shouldBe` empty
+               rest `shouldBe` empty
      context "and 20 instances (m2.4xlarge/us-east-1b)" $
        do it "will not match by instance type alone" $
             do reserved <-
                  mkReserved 2 "us-east-1a" 10 M2_4XLarge
                onDemand <-
                  mkInstances 20 "us-east-1b" M2_4XLarge
-               let (reserved',restOfOnDemand) =
-               all isReserved reserved' `shouldBe`
+               let (r,rest) =
                      matchReserved (reserved,onDemand)
+               all isReserved r `shouldBe`
                  True
-               length restOfOnDemand `shouldBe` 20
+               length rest `shouldBe` 20
 
 moveSpec :: IO TestTree
 moveSpec =
@@ -77,14 +77,15 @@ moveSpec =
             mkReserved 2 "us-east-1a" 10 M2_4XLarge
           onDemand <-
             mkInstances 20 "us-east-1b" M2_4XLarge
-          let (moveReserved,restOfOnDemand) =
-          all isMoveReserved moveReserved `shouldBe`
+          let (r,rest) =
                 moveReserved (reserved,onDemand)
+          all isMoveReserved r `shouldBe`
             True
-          traverse_ (\r ->
-                     length (r ^. reNewInstances) `shouldBe` 10)
-              moveReserved
-          restOfOnDemand `shouldBe` empty
+          traverse_ (\r' ->
+                       length (r' ^. reNewInstances) `shouldBe`
+                       10)
+                    r
+          rest `shouldBe` empty
 
 splitSpec :: IO TestTree
 splitSpec =
@@ -100,15 +101,15 @@ splitSpec =
             mkUsedReserved 1 "us-east-1a" 40 M2_4XLarge usedInstances
           wrongAzInstances <-
             mkInstances 20 "us-east-1b" M2_4XLarge
-          let ((splitReserved:restOfReserved),restOfOnDemand) =
-          isSplitReserved splitReserved `shouldBe` True
-          length (splitReserved ^. reInstances) `shouldBe`
-            10
-          length (splitReserved ^. reNewInstances) `shouldBe`
-            10
-          restOfReserved `shouldBe` empty
-          restOfOnDemand `shouldBe` empty
+          let ((r:rest'),rest'') =
                 splitReserved (usedReserved,wrongAzInstances)
+          isSplitReserved r `shouldBe` True
+          length (r ^. reInstances) `shouldBe`
+            20
+          length (r ^. reNewInstances) `shouldBe`
+            20
+          rest' `shouldBe` empty
+          rest'' `shouldBe` empty
 
 combineSpec :: IO TestTree
 combineSpec =
