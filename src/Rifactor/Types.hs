@@ -3,6 +3,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE RecordWildCards #-}
@@ -19,10 +20,10 @@
 
 module Rifactor.Types where
 
+import BasePrelude
 import Control.Lens
 import Data.Aeson.TH (deriveJSON)
 import Network.AWS
-import Network.AWS.Data
 import Network.AWS.EC2.Types hiding (Region)
 import Rifactor.Types.Internal (deriveOptions)
 

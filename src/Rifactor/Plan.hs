@@ -4,6 +4,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE RecordWildCards #-}
@@ -20,7 +21,7 @@
 
 module Rifactor.Plan where
 
-import           Control.Applicative
+import           BasePrelude hiding (getEnv)
 import           Control.Lens
 import           Control.Monad.IO.Class ()
 import           Control.Monad.Trans.AWS hiding (accessKey, secretKey)
@@ -30,15 +31,10 @@ import qualified Data.ByteString.Char8 as B
 import           Data.Conduit (($$))
 import qualified Data.Conduit.Attoparsec as C (sinkParser)
 import qualified Data.Conduit.Binary as C (sourceFile)
-import           Data.Foldable (traverse_)
-import           Data.Traversable (for)
-import           Data.List (partition)
-import           Data.Maybe (fromMaybe)
 import qualified Data.Text as T
 import           Network.AWS.Data (toText)
 import           Network.AWS.EC2
 import           Rifactor.Types
-import           System.Exit (exitFailure)
 import           System.IO (stdout)
 
 plan :: Options -> IO ()
