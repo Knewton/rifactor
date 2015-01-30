@@ -192,7 +192,19 @@ moveReserved =
 -- still have slots left for nodes with the same instance type but
 -- with other availability zones or network types.
 splitReserved :: ([Reserved],[OnDemand]) -> ([Reserved],[OnDemand])
-splitReserved = id
+splitReserved =
+  mergeInstances isUsedReserved isWorkableMatch convertToSplit
+  where isWorkableMatch (UsedReserved _ r is) (OnDemand i) =
+          (r ^. ri1InstanceType == i ^? i1InstanceType) &&
+          maybe False
+                ((<) (length is))
+                (r ^. ri1InstanceCount)
+        isWorkableMatch _ _ = False
+        convertToSplit r uis =
+          (SplitReserved (r ^. reEnv)
+                         (r ^?! reReservedInstances)
+                         (r ^?! reInstances)
+                         uis)
 
 -- | Combine Reserved Instances that aren't used with other
 -- ReservedInstances with the same stop date (& hour).
