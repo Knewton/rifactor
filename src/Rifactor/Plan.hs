@@ -66,10 +66,11 @@ plan opts =
                    case results of
                      (Left err) -> print err >> exitFailure
                      (Right xs) ->
-                       do let (reserved,nodes) = interpret xs
-                          traverse_ print reserved
-                          traverse_ print nodes
-                       -- TODO print moves & execute them
+                       do let (reserved,_) = interpret xs
+                          traverse_ print
+                                    (filter (\x -> isMoveReserved x ||
+                                                    isSplitReserved x)
+                                            reserved)
 
 initEnvs :: Config -> Logger -> IO [Env]
 initEnvs cfg lgr =
