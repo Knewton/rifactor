@@ -64,6 +64,8 @@ data Reserved
                    ,_reInstances :: [Instance]}
   deriving (Show,Eq)
 
+{- Instances -}
+
 instance Show Env
 instance Eq Env
 
@@ -81,3 +83,25 @@ $(deriveJSON deriveOptions ''Account)
 $(deriveJSON deriveOptions ''Config)
 $(deriveJSON deriveOptions ''Options)
 $(deriveJSON deriveOptions ''Region)
+
+{- Misc -}
+
+isReserved :: Reserved -> Bool
+isReserved (Reserved{..}) = True
+isReserved _ = True
+
+isUsedReserved :: Reserved -> Bool
+isUsedReserved (UsedReserved{..}) = True
+isUsedReserved _ = True
+
+isMoveReserved :: Reserved -> Bool
+isMoveReserved (MoveReserved{..}) = True
+isMoveReserved _ = True
+
+isSplitReserved :: Reserved -> Bool
+isSplitReserved (SplitReserved{..}) = True
+isSplitReserved _ = True
+
+isCombineReserved :: Reserved -> Bool
+isCombineReserved (CombineReserved{..}) = True
+isCombineReserved _ = True
