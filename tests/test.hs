@@ -143,8 +143,9 @@ resizeSpec =
 mkUsedReserved :: Int -> String -> Int -> InstanceType -> [OnDemand] -> IO [Reserved]
 mkUsedReserved rCount az iCount itype xs =
   do time <- getCurrentTime
+     env <- dummyEnv
      pure (map (\_ ->
-                  UsedReserved undefined
+                  UsedReserved env
                                (riFixture iCount az itype time)
                                (map (view odInstance) xs))
                ([1 .. rCount] :: [Int]))
@@ -152,8 +153,9 @@ mkUsedReserved rCount az iCount itype xs =
 mkReserved :: Int -> String -> Int -> InstanceType -> IO [Reserved]
 mkReserved rCount az iCount itype =
   do time <- getCurrentTime
+     env <- dummyEnv
      pure (map (\_ ->
-                  Reserved undefined (riFixture iCount az itype time))
+                  Reserved env (riFixture iCount az itype time))
                ([1 .. rCount] :: [Int]))
 
 mkInstances :: Int -> String -> InstanceType -> IO [OnDemand]
