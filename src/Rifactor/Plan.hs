@@ -141,9 +141,9 @@ mergeInstances isMatching convert (reserved,nodes) =
         go rs (xs,[]) = (rs ++ xs,[])
         go rs ((x:xs),ys) =
           case (partition (isMatching x) ys) of
-            ([],unmatched) ->
+            ([],_) ->
               go (x : rs)
-                 (xs,unmatched)
+                 (xs,ys)
             (matched,unmatched) ->
               let count =
                     fromMaybe 0 (x ^?! reReservedInstances ^. ri1InstanceCount)
