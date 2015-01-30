@@ -144,18 +144,17 @@ mergeInstances isMatchingReserved isMatchingInstance convert (reserved,nodes) =
               go (x : rs)
                  (xs,ys)
             (matched,unmatched) ->
-              let count =
-                    fromMaybe 0 (x ^?! reReservedInstances ^. ri1InstanceCount)
-                  (used,unused) =
-                    splitAt count matched
-                  uis =
-                    map (view odInstance) used
+              let (used,unused) =
+                    splitAt (fromMaybe 0
+                                       (x ^?! reReservedInstances ^.
+                                        ri1InstanceCount))
+                            matched
               in if length used == 0
                     then go (x : rs)
-                            (xs,ys)
-                    else go (convert x uis :
+                            (xs,(matched ++ unmatched))
+                    else go (convert x (map (view odInstance) used) :
                              rs)
-                            (xs,(unmatched ++ unused))
+                            (xs,(unused ++ unmatched))
 
 interpret :: ([Reserved],[OnDemand])
           -> ([Reserved],[OnDemand])
