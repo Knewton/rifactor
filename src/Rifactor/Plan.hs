@@ -64,8 +64,8 @@ plan opts =
                      (Left err) -> print err >> exitFailure
                      (Right xs) ->
                        do let (reserved,_) = interpret xs
-                          traverse_ (print . summary)
-                                    (filter (not . isModifiedReserved) reserved)
+                          traverse_ (putStrLn . T.unpack . summary)
+                                    (filter isModifiedReserved reserved)
 
 initEnvs :: Config -> Logger -> IO [Env]
 initEnvs cfg lgr =
