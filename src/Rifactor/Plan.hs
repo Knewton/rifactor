@@ -133,7 +133,7 @@ merge :: (Reserved -> OnDemand -> Bool)
       -> (Reserved -> [Instance] -> Reserved)
       -> ([Reserved],[OnDemand])
       -> ([Reserved],[OnDemand])
-merge isMatching construct (reserved,nodes) =
+merge isMatching convert (reserved,nodes) =
   let (unmatchedReserved,otherReserved) =
         partition isReserved reserved
   in go otherReserved (unmatchedReserved,nodes)
@@ -154,7 +154,7 @@ merge isMatching construct (reserved,nodes) =
               in if length used == 0
                     then go (x : rs)
                             (xs,ys)
-                    else go (construct x uis :
+                    else go (convert x uis :
                              rs)
                             (xs,(unmatched ++ unused))
 
@@ -166,13 +166,13 @@ interpret = match . move . split . combine . resize
 -- match by instance type, network type & availability zone.
 match :: ([Reserved],[OnDemand]) -> ([Reserved],[OnDemand])
 match =
-  merge isPerfectMatch constructUsed
+  merge isPerfectMatch convertToUsed
   where isPerfectMatch (Reserved _ r) (OnDemand i) =
           (r ^. ri1AvailabilityZone == i ^. i1Placement ^. pAvailabilityZone) &&
           (r ^. ri1InstanceType == i ^? i1InstanceType)
         -- TODO Add network type (Classic vs VPN)
         isPerfectMatch _ _ = False
-        constructUsed r uis =
+        convertToUsed r uis =
           (UsedReserved (r ^. reEnv)
                         (r ^?! reReservedInstances)
                         uis)
@@ -181,11 +181,11 @@ match =
 -- match by instance type.
 move :: ([Reserved],[OnDemand]) -> ([Reserved],[OnDemand])
 move =
-  merge isWorkableMatch constructMove
+  merge isWorkableMatch convertToMove
   where isWorkableMatch (Reserved _ r) (OnDemand i) =
           (r ^. ri1InstanceType == i ^? i1InstanceType)
         isWorkableMatch _ _ = False
-        constructMove r uis =
+        convertToMove r uis =
           (MoveReserved (r ^. reEnv)
                         (r ^?! reReservedInstances)
                         uis)
