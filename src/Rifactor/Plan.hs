@@ -92,7 +92,7 @@ checkPendingModifications =
                               then pure ()
                               else error "There are pending RI modifications."))
 
-fetchFromAmazon :: [Env] -> AWS ([Reserved],[OnDemand])
+fetchFromAmazon :: [Env] -> AWS Model
 fetchFromAmazon es =
   pure (,) <*> fetchReservedInstances es <*> fetchInstances es
 
