@@ -25,17 +25,17 @@ library
                        Rifactor.Plan
   ghc-options:         -Wall
   build-depends:       base          >=4.7   && <4.8
-                     , base-prelude
                      , aeson
                      , amazonka      >=0.2.2 && <0.3
                      , amazonka-core >=0.2.2 && <0.3
                      , amazonka-ec2  >=0.2.2 && <0.3
+                     , base-prelude
                      , bytestring
                      , conduit
                      , conduit-extra
                      , exceptions
-                     , mtl
                      , lens
+                     , mtl
                      , resourcet
                      , template-haskell
                      , text
@@ -48,11 +48,11 @@ executable rifactor
   main-is:             Main.hs
   ghc-options:         -Wall
   build-depends:       base          >=4.7   && <4.8
-                     , base-prelude
                      , aeson
                      , amazonka      >=0.2.2 && <0.3
                      , amazonka-core >=0.2.2 && <0.3
                      , amazonka-ec2  >=0.2.2 && <0.3
+                     , base-prelude
                      , bytestring
                      , conduit
                      , conduit-extra
@@ -77,12 +77,12 @@ test-suite test
   type:                exitcode-stdio-1.0
   ghc-options:         -Wall
   build-depends:       base          >=4.7   && <4.8
-                     , base-prelude
                      , Cabal                    <1.22
                      , aeson
                      , amazonka      >=0.2.2 && <0.3
                      , amazonka-core >=0.2.2 && <0.3
                      , amazonka-ec2  >=0.2.2 && <0.3
+                     , base-prelude
                      , bytestring
                      , conduit
                      , conduit-extra
