@@ -127,18 +127,19 @@ fetchInstances =
                                    [toText ISNRunning]]))
                  pure (map OnDemand (concatMap (view rInstances) xs)))
 
-mergeInstances :: (Reserved -> OnDemand -> Bool)
+mergeInstances :: (Reserved -> Bool)
+               -> (Reserved -> OnDemand -> Bool)
                -> (Reserved -> [Instance] -> Reserved)
                -> ([Reserved],[OnDemand])
                -> ([Reserved],[OnDemand])
-mergeInstances isMatching convert (reserved,nodes) =
+mergeInstances isMatchingReserved isMatchingInstance convert (reserved,nodes) =
   let (unmatchedReserved,otherReserved) =
-        partition isReserved reserved
+        partition isMatchingReserved reserved
   in go otherReserved (unmatchedReserved,nodes)
   where go rs ([],ys) = (rs,ys)
         go rs (xs,[]) = (rs ++ xs,[])
         go rs ((x:xs),ys) =
-          case (partition (isMatching x) ys) of
+          case (partition (isMatchingInstance x) ys) of
             ([],_) ->
               go (x : rs)
                  (xs,ys)
@@ -158,13 +159,13 @@ mergeInstances isMatching convert (reserved,nodes) =
 
 interpret :: ([Reserved],[OnDemand])
           -> ([Reserved],[OnDemand])
-interpret = match . move . split . combine . resize
+interpret = moveReserved . matchReserved
 
 -- | Match unused ReservedInstances with OnDemand nodes that
 -- match by instance type, network type & availability zone.
-  mergeInstances isPerfectMatch convertToUsed
 matchReserved :: ([Reserved],[OnDemand]) -> ([Reserved],[OnDemand])
 matchReserved =
+  mergeInstances isReserved isPerfectMatch convertToUsed
   where isPerfectMatch (Reserved _ r) (OnDemand i) =
           (r ^. ri1AvailabilityZone == i ^. i1Placement ^. pAvailabilityZone) &&
           (r ^. ri1InstanceType == i ^? i1InstanceType)
@@ -177,9 +178,9 @@ matchReserved =
 
 -- | Move unused ReservedInstances around to accommidate nodes that
 -- match by instance type.
-  mergeInstances isWorkableMatch convertToMove
 moveReserved :: ([Reserved],[OnDemand]) -> ([Reserved],[OnDemand])
 moveReserved =
+  mergeInstances isReserved isWorkableMatch convertToMove
   where isWorkableMatch (Reserved _ r) (OnDemand i) =
           (r ^. ri1InstanceType == i ^? i1InstanceType)
         isWorkableMatch _ _ = False
