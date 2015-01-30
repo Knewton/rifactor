@@ -150,7 +150,7 @@ mergeInstances isMatching convert (reserved,nodes) =
                   (used,unused) =
                     splitAt count matched
                   uis =
-                    map (\(OnDemand i) -> i) used
+                    map (view odInstance) used
               in if length used == 0
                     then go (x : rs)
                             (xs,ys)
