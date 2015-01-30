@@ -160,8 +160,6 @@ merge isMatching construct (reserved,nodes) =
                     else go (construct x uis :
                              rs)
                             (xs,(unmatched ++ unused))
-        isReserved Reserved{..} = True
-        isReserved _ = False
 
 interpret :: ([Reserved],[OnDemand])
           -> ([Reserved],[OnDemand])
