@@ -129,11 +129,11 @@ fetchInstances =
                                    [toText ISNRunning]]))
                  pure (map OnDemand (concatMap (view rInstances) xs)))
 
-merge :: (Reserved -> OnDemand -> Bool)
-      -> (Reserved -> [Instance] -> Reserved)
-      -> ([Reserved],[OnDemand])
-      -> ([Reserved],[OnDemand])
-merge isMatching convert (reserved,nodes) =
+mergeInstances :: (Reserved -> OnDemand -> Bool)
+               -> (Reserved -> [Instance] -> Reserved)
+               -> ([Reserved],[OnDemand])
+               -> ([Reserved],[OnDemand])
+mergeInstances isMatching convert (reserved,nodes) =
   let (unmatchedReserved,otherReserved) =
         partition isReserved reserved
   in go otherReserved (unmatchedReserved,nodes)
@@ -166,7 +166,7 @@ interpret = match . move . split . combine . resize
 -- match by instance type, network type & availability zone.
 match :: ([Reserved],[OnDemand]) -> ([Reserved],[OnDemand])
 match =
-  merge isPerfectMatch convertToUsed
+  mergeInstances isPerfectMatch convertToUsed
   where isPerfectMatch (Reserved _ r) (OnDemand i) =
           (r ^. ri1AvailabilityZone == i ^. i1Placement ^. pAvailabilityZone) &&
           (r ^. ri1InstanceType == i ^? i1InstanceType)
@@ -181,7 +181,7 @@ match =
 -- match by instance type.
 move :: ([Reserved],[OnDemand]) -> ([Reserved],[OnDemand])
 move =
-  merge isWorkableMatch convertToMove
+  mergeInstances isWorkableMatch convertToMove
   where isWorkableMatch (Reserved _ r) (OnDemand i) =
           (r ^. ri1InstanceType == i ^? i1InstanceType)
         isWorkableMatch _ _ = False
