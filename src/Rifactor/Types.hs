@@ -90,28 +90,61 @@ $(deriveJSON deriveOptions ''Region)
 
 {- Classes/Instances -}
 
+commaSep :: [T.Text] -> T.Text
+commaSep = T.intercalate (T.pack ", ")
+
 class Summarizable a where
   summary :: a -> T.Text
 
+instance Summarizable Model where
+  summary (rs,od) =
+    "Model " <>
+    commaSep (map summary rs) <>
+    " " <>
+    commaSep (map summary od)
+
 instance Summarizable Reserved where
+  summary (Reserved _ r) = "Reserved (UNUSED) " <> summary r
+  summary (UsedReserved _ r is) =
+    "Reserved " <> summary r <> " used by [" <>
+    commaSep (map summary is) <>
+    "]"
   summary (MoveReserved _ r is) =
-    "move " <>
+    "Move " <>
     (summary r) <>
     " for [" <>
-    T.intercalate (T.pack ", ")
-                  (map summary is) <>
+    commaSep (map summary is) <>
     "]"
-  summary _ = error "TODO Summerizeable Reserved pattern matching incomplete"
+  summary (SplitReserved _ r is nis) =
+    "Split " <>
+    (summary r) <>
+    " partially used by [" <>
+    commaSep (map summary is) <>
+    "] by adding [" <>
+    commaSep (map summary nis) <>
+    "]"
+  summary (CombineReserved _ rs) =
+    "Combine [" <>
+    commaSep (map summary rs) <>
+    "]"
+  summary (ResizeReserved _ r is) =
+    "Resize [" <>
+    (summary r) <>
+    " for [" <>
+    commaSep (map summary is) <>
+    "]"
 
 instance Summarizable OnDemand where
   summary x =
-    "on-demand " <>
+    "On-Demand " <>
     summary (x ^. odInstance)
 
 instance Summarizable ReservedInstances where
   summary x =
-    "reserved-instances#" <>
+    "Reserved-Instances " <>
     fromMaybe T.empty (x ^. ri1ReservedInstancesId) <>
+    "|" <>
+    toText (fromMaybe 0 (x ^. ri1InstanceCount)) <>
     "|" <>
     maybe T.empty toText (x ^. ri1InstanceType) <>
     "|" <>
@@ -119,7 +152,7 @@ instance Summarizable ReservedInstances where
 
 instance Summarizable Instance where
   summary x =
-    "instance#" <>
+    "Instance " <>
     (x ^. i1InstanceId) <>
     "|" <>
     toText (x ^. i1InstanceType) <>
