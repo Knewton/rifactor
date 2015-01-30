@@ -51,7 +51,7 @@ plan opts =
                             then Trace
                             else Info)
                         stdout
-            env' <- dummyEnv
+            env' <- noKeysEnv
             es <- initEnvs cfg lgr
             pending <-
               runAWST env' (checkPendingModifications es)
@@ -226,7 +226,7 @@ combineReserved (reserved,onDemand) =
 resizeReserved :: Transition
 resizeReserved = error "TODO"
 
-dummyEnv =
+noKeysEnv =
   getEnv NorthVirginia
          (FromKeys (AccessKey B.empty)
                    (SecretKey B.empty))
