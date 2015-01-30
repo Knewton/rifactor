@@ -166,11 +166,12 @@ mkInstances iCount az itype =
           ([1 .. iCount] :: [Int])
 
 riFixture :: Int -> String -> InstanceType -> UTCTime -> ReservedInstances
-riFixture count az itype _time =
+riFixture count az itype time =
   reservedInstances &
   (ri1AvailabilityZone ?~ T.pack az) &
   (ri1InstanceCount ?~ count) &
   (ri1InstanceType ?~ itype) &
+  (ri1End ?~ time) &
   (ri1InstanceTenancy ?~ Dedicated)
 
 iFixture :: String -> InstanceType -> UTCTime -> String -> Instance
