@@ -32,49 +32,112 @@ main = tests >>= defaultMain
 
 tests :: IO TestTree
 tests =
-  do sMatch <- specMatch
-     sMove <- specMove
-     return (testGroup "Tests" [sMatch, sMove])
+  sequence [matchSpec,moveSpec,splitSpec,combineSpec,resizeSpec] >>=
+  pure .
+  testGroup "Tests"
 
-specMatch :: IO TestTree
-specMatch =
-  testSpec "Match Reserved" $
-  describe "match" $
-  do it "will match reserved/on-demand by type, network & AZ" $
-       do reserved <-
-            mkReserved 2 "us-east-1a" 10 M2_4XLarge
-          onDemand <-
-            mkInstances 20 "us-east-1a" M2_4XLarge
-          let (reserved',onDemand') =
-                match (reserved,onDemand)
-          all isUsed reserved' `shouldBe`
-            True
-          onDemand' `shouldBe` []
-     it "will not match reserved/on-demand by just instance type" $
+matchSpec :: IO TestTree
+matchSpec =
+  testSpec "Matching" $
+  describe "ReservedInstances With Instances" $
+  context "with 20 reserved (m2.4xlarge/us-east-1a)" $
+  do context "and 20 instances (m2.4xlarge/us-east-1a)" $
+       do it "will match by type, network & AZ" $
+            do reserved <-
+                 mkReserved 2 "us-east-1a" 10 M2_4XLarge
+               onDemand <-
+                 mkInstances 20 "us-east-1a" M2_4XLarge
+               let (usedReserved,restOfOnDemand) =
+                     match (reserved,onDemand)
+               all isUsedReserved usedReserved `shouldBe`
+                 True
+               restOfOnDemand `shouldBe` empty
+     context "and 20 instances (m2.4xlarge/us-east-1b)" $
+       do it "will not match by instance type alone" $
+            do reserved <-
+                 mkReserved 2 "us-east-1a" 10 M2_4XLarge
+               onDemand <-
+                 mkInstances 20 "us-east-1b" M2_4XLarge
+               let (reserved',restOfOnDemand) =
+                     match (reserved,onDemand)
+               all isReserved reserved' `shouldBe`
+                 True
+               length restOfOnDemand `shouldBe` 20
+
+moveSpec :: IO TestTree
+moveSpec =
+  testSpec "Moving" $
+  describe "Ununused ReservedInstances" $
+  context "with 20 reserved (m2.4xlarge/us-east-1a)" $
+  context "and 20 instances (m2.4xlarge/us-east-1b)" $
+  do it "will match by instance type & move" $
        do reserved <-
             mkReserved 2 "us-east-1a" 10 M2_4XLarge
           onDemand <-
             mkInstances 20 "us-east-1b" M2_4XLarge
-          let (reserved',onDemand') =
-                match (reserved,onDemand)
-          all isNotUsed reserved' `shouldBe`
-            True
-          length onDemand' `shouldBe` 20
-
-specMove :: IO TestTree
-specMove =
-  testSpec "Move Reserved" $
-  describe "move" $
-  do it "will match reserved with on-demand by instance type alone" $
-       do reserved <-
-            mkReserved 2 "us-east-1a" 10 M2_4XLarge
-          onDemand <-
-            mkInstances 20 "us-east-1b" M2_4XLarge
-          let (reserved',onDemand') =
+          let (moveReserved,restOfOnDemand) =
                 move (reserved,onDemand)
-          all isUsed reserved' `shouldBe`
+          all isMoveReserved moveReserved `shouldBe`
             True
-          onDemand' `shouldBe` []
+          all (\r ->
+                 length (r ^. reInstances) ==
+                 10)
+              (moveReserved) `shouldBe`
+            True
+          restOfOnDemand `shouldBe` empty
+
+splitSpec :: IO TestTree
+splitSpec =
+  testSpec "Splitting" $
+  describe "Used ReservedInstances (That Have Capacity)" $
+  context "with 40 reserved m2.4xlarge/us-east-1a" $
+  context "and 20 instances m2.4xlarge/us-east-1a" $
+  context "and 20 instances m2.4xlarge/us-east-1b" $
+  do it "will match all instances & split" $
+       do usedInstances <-
+            mkInstances 20 "us-east-1a" M2_4XLarge
+          usedReserved <-
+            mkUsedReserved 1 "us-east-1a" 40 M2_4XLarge usedInstances
+          wrongAzInstances <-
+            mkInstances 20 "us-east-1b" M2_4XLarge
+          let ((splitReserved:restOfReserved),restOfOnDemand) =
+                split (usedReserved,wrongAzInstances)
+          isSplitReserved splitReserved `shouldBe` True
+          length (splitReserved ^. reInstances) `shouldBe`
+            10
+          length (splitReserved ^. reNewInstances) `shouldBe`
+            10
+          restOfReserved `shouldBe` empty
+          restOfOnDemand `shouldBe` empty
+
+combineSpec :: IO TestTree
+combineSpec =
+  testSpec "Combining" $
+  describe "ReservedInstances (That Are No Longer Used)" $
+  context "with 10 reserved m2.4xlarge/us-east-1a" $
+  context "and 10 reserved m2.4xlarge/us-east-1b" $
+  context "and 0 instances m2.4xlarge/us-east-1" $
+  do it "will combined reserved instances that match" $
+       pending
+
+resizeSpec :: IO TestTree
+resizeSpec =
+  testSpec "Resizing" $
+  describe "ReservedInstances (That Are No Longer Used)" $
+  context "with 100 reserved m2.4xlarge/us-east-1a" $
+  context "and 0 instances m2.4xlarge/us-east-1" $
+  context "and 120 instances m2.2xlarge/us-east-1" $
+  do it "will resize reserved instances to match" $
+       pending
+
+mkUsedReserved :: Int -> String -> Int -> InstanceType -> [OnDemand] -> IO [Reserved]
+mkUsedReserved rCount az iCount itype xs =
+  do time <- getCurrentTime
+     pure (map (\_ ->
+                  UsedReserved undefined
+                               (riFixture iCount az itype time)
+                               (map (view odInstance) xs))
+               ([1 .. rCount] :: [Int]))
 
 mkReserved :: Int -> String -> Int -> InstanceType -> IO [Reserved]
 mkReserved rCount az iCount itype =
@@ -115,11 +178,3 @@ iFixture az itype time iid =
              Hvm
              Xen
              False)
-
-isNotUsed :: Reserved -> Bool
-isNotUsed (Reserved{..}) = True
-isNotUsed _ = True
-
-isUsed :: Reserved -> Bool
-isUsed (UsedReserved{..}) = True
-isUsed _ = True
