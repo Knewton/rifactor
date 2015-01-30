@@ -209,7 +209,7 @@ combineReserved = id
 -- | Resize Reserved Instances that have capacity if we can accomidate
 -- nodes of different instance types.
 resizeReserved :: Transition
-resizeReserved = id
+resizeReserved = error "TODO"
 
 dummyEnv =
   getEnv NorthVirginia
