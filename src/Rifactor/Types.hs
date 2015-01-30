@@ -52,7 +52,7 @@ data Reserved
                  ,_reInstances :: [Instance]}
   | MoveReserved {_reEnv :: Env
                  ,_reReservedInstances :: ReservedInstances
-                 ,_reInstances :: [Instance]}
+                 ,_reNewInstances :: [Instance]}
   | SplitReserved {_reEnv :: Env
                   ,_reReservedInstances :: ReservedInstances
                   ,_reInstances :: [Instance]
