@@ -67,10 +67,8 @@ plan opts =
                      (Left err) -> print err >> exitFailure
                      (Right xs) ->
                        do let (reserved,_) = interpret xs
-                          traverse_ print
-                                    (filter (\x -> isMoveReserved x ||
-                                                    isSplitReserved x)
-                                            reserved)
+                          traverse_ (print . details)
+                                    (filter (not . isModifiedReserved) reserved)
 
 initEnvs :: Config -> Logger -> IO [Env]
 initEnvs cfg lgr =
