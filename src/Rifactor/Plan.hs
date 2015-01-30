@@ -201,10 +201,25 @@ splitReserved =
                          (r ^?! reInstances)
                          uis)
 
--- | Combine Reserved Instances that aren't used with other
--- ReservedInstances with the same stop date (& hour).
+-- | Of the Reserved Instances that aren't currently being modified,
+-- combine RIs with the same end date & region.
 combineReserved :: Transition
-combineReserved = id
+combineReserved (reserved,onDemand) =
+  let (modified,notModified) =
+        partition isModifiedReserved reserved
+      reducedNotModified =
+        concatMap combine (groupBy isSameDateAndRegion notModified)
+  in (modified ++ reducedNotModified,onDemand)
+  where isSameDateAndRegion x y =
+          ((x ^?! reReservedInstances ^. ri1End) ==
+           (y ^?! reReservedInstances ^. ri1End)) &&
+          ((x ^. reEnv ^. envRegion) ==
+           (y ^. reEnv ^. envRegion))
+        combine [] = []
+        combine rs@(_:[]) = rs
+        combine rs@(r:_) =
+          [CombineReserved (r ^. reEnv)
+                           (map (\x -> x ^?! reReservedInstances) rs)]
 
 -- | Resize Reserved Instances that have capacity if we can accomidate
 -- nodes of different instance types.
