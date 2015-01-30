@@ -121,9 +121,8 @@ combineSpec =
   it "will combine reserved instances with same end date/hour" $
   do unusedReserved <-
        mkReserved 2 "us-east-1a" 10 M2_4XLarge
-     let (rs@(r:rest'),rest'') =
+     let ((r:rest'),rest'') =
            combineReserved (unusedReserved,[])
-     traverse_ (print . summary) rs
      isCombineReserved r `shouldBe` True
      length (r ^. reReservedInstances') `shouldBe`
        2
