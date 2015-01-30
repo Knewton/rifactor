@@ -51,18 +51,15 @@ plan opts =
                             then Trace
                             else Info)
                         stdout
-            dummyEnv <-
-              getEnv NorthVirginia
-                     (FromKeys (AccessKey B.empty)
-                               (SecretKey B.empty))
+            env' <- dummyEnv
             es <- initEnvs cfg lgr
             pending <-
-              runAWST dummyEnv (checkPendingModifications es)
+              runAWST env' (checkPendingModifications es)
             case pending of
               (Left err) -> print err >> exitFailure
               _ ->
                 do results <-
-                     runAWST dummyEnv (fetchFromAmazon es)
+                     runAWST env' (fetchFromAmazon es)
                    case results of
                      (Left err) -> print err >> exitFailure
                      (Right xs) ->
@@ -213,3 +210,8 @@ combineReserved = id
 -- nodes of different instance types.
 resizeReserved :: Transition
 resizeReserved = id
+
+dummyEnv =
+  getEnv NorthVirginia
+         (FromKeys (AccessKey B.empty)
+                   (SecretKey B.empty))
