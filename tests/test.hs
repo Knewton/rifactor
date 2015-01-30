@@ -163,7 +163,7 @@ mkInstances iCount az itype =
   do time <- getCurrentTime
      mapM (\instanceNum ->
              pure (OnDemand (iFixture az itype time (show instanceNum))))
-       ([1 .. iCount] :: [Int])
+          ([1 .. iCount] :: [Int])
 
 riFixture :: Int -> String -> InstanceType -> UTCTime -> ReservedInstances
 riFixture count az itype _time =
