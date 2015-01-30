@@ -137,8 +137,8 @@ resizeSpec =
   context "with 100 reserved m2.4xlarge/us-east-1a" $
   context "and 0 instances m2.4xlarge/us-east-1" $
   context "and 120 instances m2.2xlarge/us-east-1" $
-  do it "will resize reserved instances to match" $
-       pending
+  it "will resize reserved instances to match" $
+  pending
 
 mkUsedReserved :: Int -> String -> Int -> InstanceType -> [OnDemand] -> IO [Reserved]
 mkUsedReserved rCount az iCount itype xs =
