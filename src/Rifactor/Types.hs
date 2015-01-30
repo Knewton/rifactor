@@ -152,3 +152,7 @@ isSplitReserved _ = True
 isCombineReserved :: Reserved -> Bool
 isCombineReserved (CombineReserved{..}) = True
 isCombineReserved _ = True
+
+isModifiedReserved :: Reserved -> Bool
+isModifiedReserved r = isSplitReserved r || isCombineReserved r ||
+                                            isMoveReserved r
