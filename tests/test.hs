@@ -160,8 +160,8 @@ mkReserved rCount az iCount itype =
 
 mkInstances :: Int -> String -> InstanceType -> IO [OnDemand]
 mkInstances iCount az itype =
-  mapM (\instanceNum ->
-          do time <- getCurrentTime
+  do time <- getCurrentTime
+     mapM (\instanceNum ->
              pure (OnDemand (iFixture az itype time (show instanceNum))))
        ([1 .. iCount] :: [Int])
 
