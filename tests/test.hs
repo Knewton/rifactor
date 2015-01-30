@@ -118,7 +118,7 @@ combineSpec =
   describe "ReservedInstances (That Are Not Being Modified)" $
   context "with 2 x 10 reserved m2.4xlarge/us-east-1a" $
   context "and 0 instances m2.4xlarge/us-east-1" $
-  it "will combine reserved instances with same start time" $
+  it "will combine reserved instances with same end date/hour" $
   do unusedReserved <-
        mkReserved 2 "us-east-1a" 10 M2_4XLarge
      let (rs@(r:rest'),rest'') =
