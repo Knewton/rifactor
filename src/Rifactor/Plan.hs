@@ -151,7 +151,7 @@ merge isMatching construct (reserved,nodes) =
               let count =
                     fromMaybe 0 (x ^?! reReservedInstances ^. ri1InstanceCount)
                   (used,unused) =
-                    splitAt count matched -- TODO off by one?
+                    splitAt count matched
                   uis =
                     map (\(OnDemand i) -> i) used
               in if length used == 0
