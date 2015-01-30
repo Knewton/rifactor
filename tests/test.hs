@@ -21,7 +21,8 @@
 
 import           BasePrelude
 import           Control.Lens
-import           Data.Time
+import           Control.Monad.Trans.AWS (Env, envRegion)
+import           Data.Time (UTCTime, getCurrentTime)
 import qualified Data.Text as T
 import           Network.AWS.EC2
 import           Rifactor.Plan
