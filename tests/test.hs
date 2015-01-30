@@ -115,12 +115,20 @@ splitSpec =
 combineSpec :: IO TestTree
 combineSpec =
   testSpec "Combining" $
-  describe "ReservedInstances (That Are No Longer Used)" $
-  context "with 10 reserved m2.4xlarge/us-east-1a" $
-  context "and 10 reserved m2.4xlarge/us-east-1b" $
+  describe "ReservedInstances (That Are Not Being Modified)" $
+  context "with 2 x 10 reserved m2.4xlarge/us-east-1a" $
   context "and 0 instances m2.4xlarge/us-east-1" $
-  do it "will combined reserved instances that match" $
-       pending
+  it "will combine reserved instances with same start time" $
+  do unusedReserved <-
+       mkReserved 2 "us-east-1a" 10 M2_4XLarge
+     let (rs@(r:rest'),rest'') =
+           combineReserved (unusedReserved,[])
+     traverse_ (print . summary) rs
+     isCombineReserved r `shouldBe` True
+     length (r ^. reReservedInstances') `shouldBe`
+       2
+     rest' `shouldBe` empty
+     rest'' `shouldBe` empty
 
 resizeSpec :: IO TestTree
 resizeSpec =
