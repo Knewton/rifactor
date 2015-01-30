@@ -93,26 +93,26 @@ $(deriveJSON deriveOptions ''Region)
 
 {- Classes/Instances -}
 
-class Details a where
-  details :: a -> T.Text
+class Summarizable a where
+  summary :: a -> T.Text
 
-instance Details Reserved where
-  details (MoveReserved _ r is) =
+instance Summarizable Reserved where
+  summary (MoveReserved _ r is) =
     "move " <>
-    (details r) <>
+    (summary r) <>
     " for [" <>
     T.intercalate (T.pack ", ")
-                  (map details is) <>
+                  (map summary is) <>
     "]"
-  details _ = error "TODO"
+  summary _ = error "TODO Summerizeable Reserved pattern matching incomplete"
 
-instance Details OnDemand where
-  details x =
+instance Summarizable OnDemand where
+  summary x =
     "on-demand " <>
-    details (x ^. odInstance)
+    summary (x ^. odInstance)
 
-instance Details ReservedInstances where
-  details x =
+instance Summarizable ReservedInstances where
+  summary x =
     "reserved-instances#" <>
     fromMaybe T.empty (x ^. ri1ReservedInstancesId) <>
     "|" <>
@@ -120,8 +120,8 @@ instance Details ReservedInstances where
     "|" <>
     fromMaybe T.empty (x ^. ri1AvailabilityZone)
 
-instance Details Instance where
-  details x =
+instance Summarizable Instance where
+  summary x =
     "instance#" <>
     (x ^. i1InstanceId) <>
     "|" <>
