@@ -226,6 +226,7 @@ combineReserved (reserved,onDemand) =
 resizeReserved :: Transition
 resizeReserved = error "TODO"
 
+noKeysEnv :: IO Env
 noKeysEnv =
   getEnv NorthVirginia
          (FromKeys (AccessKey B.empty)
