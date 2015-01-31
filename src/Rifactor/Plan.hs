@@ -171,10 +171,11 @@ resizeReserved = id
 --
 -- Using the supplied first argument as a filter, find the Reserved
 -- that match. From that list look for any OnDemand that match the
--- second argument (as a filter). If we have a match then we pass data
--- to the 3rd function which creates a new Reserved record (which we
--- track). In the end you are returned a new version of the Model with
--- instances accounted for & attached to the correct Reserved records.
+-- second filter fn. If we have a match then we pass data to the 3rd
+-- function which creates a new Reserved record (which we exchange for
+-- the prevous Reserved record in the Model). In the end you are
+-- returned a new version of the Model with instances accounted for &
+-- attached to the correct Reserved records.
 mergeInstances :: (Reserved -> Bool)
                -> (Reserved -> OnDemand -> Bool)
                -> (Reserved -> [Instance] -> Reserved)
