@@ -74,9 +74,11 @@ plan opts =
                      (Left err) -> print err >> exitFailure
                      (Right xs) ->
                        do let (reserved,_) = transition xs
-                          traverse_ (putStrLn . T.unpack . summary) reserved -- (filter isModifiedReserved reserved)
-                                                                            -- TODO print a nice summary of instances & reservations groupBy (region, az, instance type, network-type)
+                          traverse_ (putStrLn . T.unpack . summary)
+                                    (filter isModifiedReserved reserved)
 
+-- TODO print a nice summary of instances & reservations groupBy
+-- (region, az, instance type, network-type)
 
 -- | Take an initial Model and then transition it through steps &
 -- return the new Model.
