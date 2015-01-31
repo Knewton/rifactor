@@ -62,7 +62,7 @@ checkPendingModifications =
                                     [filter' "status" &
                                      fValues .~
                                      [T.pack "processing"]]))
-                           if (not . null) rims
+                           if null rims
                               then pure ()
                               else ಠ_ಠ "There are pending RI modifications."))
 
