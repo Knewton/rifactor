@@ -44,8 +44,9 @@ data Account =
           ,_accessKey :: String
           ,_secretKey :: String}
 
--- | Config is a combination of accounts & regions we want to cover
--- for all the accounts.  It looks like so:
+-- | Config is a combination of accounts & regions we want to cover.
+-- It looks like so:
+--
 -- {
 --   "accounts": [
 --     {
