@@ -166,7 +166,7 @@ combineReserved (reserved,onDemand) =
 -- | Resize Reserved Instances that have capacity if we can accomidate
 -- nodes of different instance types.
 resizeReserved :: Transition
-resizeReserved = ಠ_ಠ "TODO"
+resizeReserved = id
 
 -- | This function is an abstraction. We repeatedly need to take a
 -- reservation that we know little about & associate nodes with it
