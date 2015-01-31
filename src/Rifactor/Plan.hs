@@ -88,7 +88,11 @@ fetchFromAmazon es =
 -- return the new Model.
 transition :: Transition
 transition =
-  (combineReserved . splitReserved . moveReserved . matchReserved)
+  resizeReserved .
+  combineReserved .
+  splitReserved .
+  moveReserved .
+  matchReserved
 
 -- | Match unused ReservedInstances with OnDemand nodes that
 -- match by instance type, network type & availability zone.
