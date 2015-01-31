@@ -66,6 +66,11 @@ checkPendingModifications =
                               then pure ()
                               else ಠ_ಠ "There are pending RI modifications."))
 
+-- | Fetch all the Model data we need from Amazon via their APIs.
+fetchFromAmazon :: [Env] -> AWS Model
+fetchFromAmazon es =
+  pure (,) <*> fetchReservedInstances es <*> fetchInstances es
+
 -- | Fetch all the ReservedInstances records we can from all Env (all
 -- accounts/regions). Return a consolidated list of Reserved records
 -- (1 per EC2 ReservedInstances).

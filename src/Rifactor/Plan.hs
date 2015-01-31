@@ -77,10 +77,6 @@ plan opts =
                           traverse_ (putStrLn . T.unpack . summary) reserved -- (filter isModifiedReserved reserved)
                                                                             -- TODO print a nice summary of instances & reservations groupBy (region, az, instance type, network-type)
 
--- | Fetch all the Model data we need from Amazon via their APIs.
-fetchFromAmazon :: [Env] -> AWS Model
-fetchFromAmazon es =
-  pure (,) <*> fetchReservedInstances es <*> fetchInstances es
 
 -- | Take an initial Model and then transition it through steps &
 -- return the new Model.
