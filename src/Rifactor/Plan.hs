@@ -137,7 +137,7 @@ splitReserved =
                         (r ^?! reInstances)
 
 -- | Of the Reserved Instances that aren't currently being modified,
--- combine RIs with the same end date & region.
+-- combine RIs where conditions permit (see Amazon specs).
 combineReserved :: Transition
 combineReserved (reserved,onDemand) =
   let (modified,notModified) =
@@ -150,6 +150,8 @@ combineReserved (reserved,onDemand) =
            (y ^?! reReservedInstances ^. ri1End)) &&
           ((x ^?! reReservedInstances ^. ri1OfferingType) ==
            (y ^?! reReservedInstances ^. ri1OfferingType)) &&
+          -- TODO we have a little wiggle room in the instance type
+          -- once we have our calculator ready
           ((x ^?! reReservedInstances ^. ri1InstanceType) ==
            (y ^?! reReservedInstances ^. ri1InstanceType)) &&
           ((x ^. reEnv ^. envRegion) ==
@@ -166,16 +168,17 @@ resizeReserved :: Transition
 resizeReserved = id
 
 -- | This function is an abstraction. We repeatedly need to take a
--- reservation that we know little about & associate nodes with it
--- based on criteria.
+-- Reserved that we know little about & associate OnDemand instances
+-- with it based on criteria.
 --
--- Using the supplied first argument as a filter, find the Reserved
--- that match. From that list look for any OnDemand that match the
--- second filter fn. If we have a match then we pass data to the 3rd
--- function which creates a new Reserved record (which we exchange for
--- the prevous Reserved record in the Model). In the end you are
--- returned a new version of the Model with instances accounted for &
--- attached to the correct Reserved records.
+-- Using the supplied first-argument function, find the Reserved that
+-- match. From that list look for any OnDemand that match the
+-- second-argument function. If there is a match we pass Reserved data
+-- to the 3rd function which constructs a new Reserved record (which
+-- we exchange for the prevous Reserved record in the Model).
+--
+-- This is repeated for every Reserved in the Model. At the end of the
+-- recursion you are left with a new version of the Model.
 mergeInstances :: (Reserved -> Bool)
                -> (Reserved -> OnDemand -> Bool)
                -> (Reserved -> [Instance] -> Reserved)
