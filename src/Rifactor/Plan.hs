@@ -75,7 +75,7 @@ plan opts =
                    case results of
                      (Left err) -> print err >> exitFailure
                      (Right xs) ->
-                       do let (reserved,_) = interpret xs
+                       do let (reserved,_) = transition xs
                           traverse_ (putStrLn . T.unpack . summary) reserved -- (filter isModifiedReserved reserved)
                                                                             -- TODO print a nice summary of instances & reservations groupBy (region, az, instance type, network-type)
 
