@@ -1,8 +1,10 @@
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE TypeSynonymInstances #-}
 
 -- Module      : Rifactor.Types
 -- Copyright   : (c) 2015 Knewton, Inc <se@knewton.com>
@@ -17,6 +19,7 @@ module Rifactor.Types where
 import           BasePrelude
 import           Control.Lens
 import           Data.Aeson.TH (deriveJSON)
+import           Data.Text (Text)
 import qualified Data.Text as T
 import           Network.AWS
 import           Network.AWS.Data (toText)
@@ -77,7 +80,7 @@ data Config =
 -- for our Model by hand.
 instance Eq Env
 
--- | OnDemand represents Instancs that we haven't found a match (with
+-- | OnDemand represents Instances that we haven't found a match (with
 -- ReservedInstances) yet.  We can also track the Env that we got the
 -- instance from in the record.
 data OnDemand =
@@ -85,6 +88,11 @@ data OnDemand =
            ,_odInstance :: Instance}
   deriving (Eq)
 
+-- | Reserved represents ReservedInstances that are going through
+-- transitions as we figure out what they are & what to do with them.
+-- Reserved starts out as Reserved (Unknown/Unused) and through a
+-- series of Transition functions, comes out the other end as
+-- CombineReserved, SplitReserved, etc.
 data Reserved
   = Reserved {_reEnv :: Env
              ,_reReservedInstances :: ReservedInstances}
@@ -105,14 +113,26 @@ data Reserved
                    ,_reInstances :: [Instance]}
   deriving (Eq)
 
+-- | This is our (simple) data model.  We have a list of Reserved
+-- instances and we have a list of OnDemand instances.  We try to
+-- match them together as we run through our algorithms.
 type Model = ([Reserved],[OnDemand])
 
+-- | A Transition represents a state transition between two models.
+-- It is the type signature of several functions that transform the
+-- Model.
 type Transition = Model -> Model
 
+-- | This is hear just for fun as a unicode alias to "error" (used
+-- when we want to bail from an unrecoverable error condition.)
 ಠ_ಠ :: String -> a
 ಠ_ಠ = error
 
-{- Lenses -}
+{-
+Lens: These declarations are here to generate code for us.  They
+generate "lens" which gives us really powerful ways of view & updating
+our records.
+-}
 
 $(makeLenses ''Account)
 $(makeLenses ''Config)
@@ -120,21 +140,35 @@ $(makeLenses ''OnDemand)
 $(makeLenses ''Options)
 $(makeLenses ''Reserved)
 
-{- JSON -}
+{-
+JSON: These declarations are here to generate code for us.  They
+generate JSON code to translate our record types to and from JSON.
+See Rifactor.Types.Internal.deriveOptions on how we translate from our
+record's camel case to snake case (which looks better in JSON files on
+disk.)
+-}
 
 $(deriveJSON deriveOptions ''Account)
 $(deriveJSON deriveOptions ''Config)
 $(deriveJSON deriveOptions ''Options)
-$(deriveJSON deriveOptions ''Region)
+$(deriveJSON deriveOptions ''Region) -- We even add a JSON instance
+                                     -- for a data type from the
+                                     -- Amazonka libs (Region).
 
 {- Classes/Instances -}
 
-commaSep :: [T.Text] -> T.Text
+-- | This partial function will intersperse commas through any list of
+-- Text given it.
+commaSep :: [Text] -> Text
 commaSep = T.intercalate (T.pack ", ")
 
+-- | This class is for summarizing things to print to the console (or
+-- a report).  It's pretty simple & straightforward. It only has
+-- limited features.
 class Summarizable a where
-  summary :: a -> T.Text
+  summary :: a -> Text
 
+-- | A summary of a Model as a whole.
 instance Summarizable Model where
   summary (rs,od) =
     "Model " <>
@@ -142,6 +176,7 @@ instance Summarizable Model where
     " " <>
     commaSep (map summary od)
 
+-- | A summary of a Reserved recard (many different).
 instance Summarizable Reserved where
   summary (Reserved _ r) = "Unused " <> summary r
   summary (UsedReserved _ r is) =
@@ -183,9 +218,11 @@ instance Summarizable Reserved where
     commaSep (map summary is) <>
     "]"
 
+-- | A summary of a OnDemand recard.
 instance Summarizable OnDemand where
   summary = summary . view odInstance
 
+-- | A summary of a ReservedInstances recard.
 instance Summarizable ReservedInstances where
   summary x =
     fromMaybe T.empty (x ^. ri1ReservedInstancesId) <>
@@ -196,6 +233,7 @@ instance Summarizable ReservedInstances where
     "|" <>
     fromMaybe T.empty (x ^. ri1AvailabilityZone)
 
+-- | A summary of a Instance recard.
 instance Summarizable Instance where
   summary x =
     (x ^. i1InstanceId) <>
@@ -205,6 +243,13 @@ instance Summarizable Instance where
     maybe T.empty toText (x ^. i1Placement ^. pAvailabilityZone)
 
 {- Misc -}
+
+{-
+NOTE: This is probably a better way to model OnDemand & Reserved so we
+can use the types & pattern match against them super expresively
+without having to resort to these tedious filter functions.  More on
+that in V2.  We need working over "perfectly modeled" at the moment.
+-}
 
 isReserved :: Reserved -> Bool
 isReserved (Reserved{..}) = True
