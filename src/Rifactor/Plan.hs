@@ -3,8 +3,6 @@
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE TemplateHaskell #-}
 
 -- Module      : Rifactor.Plan
 -- Copyright   : (c) 2015 Knewton, Inc <se@knewton.com>
@@ -59,7 +57,7 @@ plan opts =
        (A.Error err) -> putStrLn err >> exitFailure
        (A.Success cfg) ->
          do lgr <-
-              newLogger (if (opts ^. verbose)
+              newLogger (if opts ^. verbose
                             then Trace
                             else Info)
                         stdout
@@ -105,10 +103,9 @@ matchReserved =
           (er ^. envRegion == ei ^. envRegion)
         -- TODO Add network type (Classic vs VPN)
         isPerfectMatch _ _ = False
-        convertToUsed r uis =
-          (UsedReserved (r ^. reEnv)
-                        (r ^?! reReservedInstances)
-                        uis)
+        convertToUsed r =
+          UsedReserved (r ^. reEnv)
+                       (r ^?! reReservedInstances)
 
 -- | Move unused ReservedInstances around to accommidate nodes that
 -- match by instance type.
@@ -119,10 +116,9 @@ moveReserved =
           (r ^. ri1InstanceType == i ^? i1InstanceType) &&
           (er ^. envRegion == ei ^. envRegion)
         isWorkableMatch _ _ = False
-        convertToMove r uis =
-          (MoveReserved (r ^. reEnv)
-                        (r ^?! reReservedInstances)
-                        uis)
+        convertToMove r =
+          MoveReserved (r ^. reEnv)
+                       (r ^?! reReservedInstances)
 
 -- | Split used ReservedInstances up that have remaining capacity but
 -- still have slots left for nodes with the same instance type but
@@ -133,15 +129,12 @@ splitReserved =
   where isWorkableMatch (UsedReserved er r is) (OnDemand ei i) =
           (r ^. ri1InstanceType == i ^? i1InstanceType) &&
           (er ^. envRegion == ei ^. envRegion) &&
-          maybe False
-                ((<) (length is))
-                (r ^. ri1InstanceCount)
+          maybe False (length is <) (r ^. ri1InstanceCount)
         isWorkableMatch _ _ = False
-        convertToSplit r uis =
-          (SplitReserved (r ^. reEnv)
-                         (r ^?! reReservedInstances)
-                         (r ^?! reInstances)
-                         uis)
+        convertToSplit r =
+          SplitReserved (r ^. reEnv)
+                        (r ^?! reReservedInstances)
+                        (r ^?! reInstances)
 
 -- | Of the Reserved Instances that aren't currently being modified,
 -- combine RIs with the same end date & region.
@@ -162,10 +155,10 @@ combineReserved (reserved,onDemand) =
           ((x ^. reEnv ^. envRegion) ==
            (y ^. reEnv ^. envRegion))
         combine [] = []
-        combine rs@(_:[]) = rs
+        combine rs@[_] = rs
         combine rs@(r:_) =
           [CombineReserved (r ^. reEnv)
-                           (map (\x -> x ^?! reReservedInstances) rs)]
+                           (map (^?! reReservedInstances) rs)]
 
 -- | Resize Reserved Instances that have capacity if we can accomidate
 -- nodes of different instance types.
@@ -192,8 +185,8 @@ mergeInstances isMatchingReserved isMatchingInstance convert (reserved,nodes) =
   in go otherReserved (unmatchedReserved,nodes)
   where go rs ([],ys) = (rs,ys)
         go rs (xs,[]) = (rs ++ xs,[])
-        go rs ((x:xs),ys) =
-          case (partition (isMatchingInstance x) ys) of
+        go rs (x:xs,ys) =
+          case partition (isMatchingInstance x) ys of
             ([],_) ->
               go (x : rs)
                  (xs,ys)
@@ -203,9 +196,9 @@ mergeInstances isMatchingReserved isMatchingInstance convert (reserved,nodes) =
                                        (x ^?! reReservedInstances ^.
                                         ri1InstanceCount))
                             matched
-              in if length used == 0
+              in if null used
                     then go (x : rs)
-                            (xs,(matched ++ unmatched))
+                            (xs,matched ++ unmatched)
                     else go (convert x (map (view odInstance) used) :
                              rs)
-                            (xs,(unused ++ unmatched))
+                            (xs,unused ++ unmatched)

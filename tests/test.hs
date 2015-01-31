@@ -7,8 +7,6 @@
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeFamilies #-}
 
 -- Module      : Main
@@ -103,7 +101,7 @@ splitSpec =
        mkUsedReserved 1 "us-east-1a" 40 M2_4XLarge usedInstances
      wrongAzInstances <-
        mkInstances 20 "us-east-1b" M2_4XLarge
-     let ((r:rest'),rest'') =
+     let (r:rest',rest'') =
            splitReserved (usedReserved,wrongAzInstances)
      isSplitReserved r `shouldBe` True
      length (r ^. reInstances) `shouldBe`
@@ -122,7 +120,7 @@ combineSpec =
   it "will combine reserved instances with same end date/hour" $
   do unusedReserved <-
        mkReserved 2 "us-east-1a" 10 M2_4XLarge
-     let ((r:rest'),rest'') =
+     let (r:rest',rest'') =
            combineReserved (unusedReserved,[])
      isCombineReserved r `shouldBe` True
      length (r ^. reReservedInstances') `shouldBe`
@@ -137,8 +135,7 @@ resizeSpec =
   context "with 100 reserved m2.4xlarge/us-east-1a" $
   context "and 0 instances m2.4xlarge/us-east-1" $
   context "and 120 instances m2.2xlarge/us-east-1" $
-  it "will resize reserved instances to match" $
-  pending
+  it "will resize reserved instances to match" pending
 
 mkUsedReserved :: Int -> String -> Int -> InstanceType -> [OnDemand] -> IO [Reserved]
 mkUsedReserved rCount az iCount itype xs =
@@ -162,8 +159,7 @@ mkInstances :: Int -> String -> InstanceType -> IO [OnDemand]
 mkInstances iCount az itype =
   do time <- getCurrentTime
      env <- noKeysEnv
-     mapM (\instanceNum ->
-             pure (OnDemand env (iFixture az itype time (show instanceNum))))
+     mapM (pure . OnDemand env . iFixture az itype time . show)
           ([1 .. iCount] :: [Int])
 
 riFixture :: Int -> String -> InstanceType -> UTCTime -> ReservedInstances
@@ -177,21 +173,21 @@ riFixture count az itype time =
 
 iFixture :: String -> InstanceType -> UTCTime -> String -> Instance
 iFixture az itype time iid =
-  (instance' (T.pack iid)
-             (T.pack "ami-fake0")
-             (instanceState 16 ISNRunning)
-             42
-             itype
-             time
-             (placement &
-              (pAvailabilityZone ?~ T.pack az))
-             (monitoring &
-              (mState ?~ MSDisabled))
-             X8664
-             InstanceStore
-             Hvm
-             Xen
-             False)
+  instance' (T.pack iid)
+            (T.pack "ami-fake0")
+            (instanceState 16 ISNRunning)
+            42
+            itype
+            time
+            (placement &
+             (pAvailabilityZone ?~ T.pack az))
+            (monitoring &
+             (mState ?~ MSDisabled))
+            X8664
+            InstanceStore
+            Hvm
+            Xen
+            False
 
 instance Show Env where
   show e = show (e ^. envRegion)
