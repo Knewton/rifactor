@@ -1,15 +1,10 @@
-{-# LANGUAGE ConstraintKinds #-}
-{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE GADTs #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE TypeFamilies #-}
 
 -- Module      : Rifactor.Plan
 -- Copyright   : (c) 2015 Knewton, Inc <se@knewton.com>
@@ -19,7 +14,7 @@
 -- Stability   : experimental
 -- Portability : non-portable (GHC extensions)
 
-module Rifactor.Plan where
+module Rifactor.Plan (plan) where
 
 import           BasePrelude hiding (getEnv)
 import           Control.Lens
@@ -27,16 +22,33 @@ import           Control.Monad.IO.Class ()
 import           Control.Monad.Trans.AWS hiding (accessKey, secretKey)
 import           Control.Monad.Trans.Resource (runResourceT)
 import qualified Data.Aeson as A
-import qualified Data.ByteString.Char8 as B
 import           Data.Conduit (($$))
 import qualified Data.Conduit.Attoparsec as C (sinkParser)
 import qualified Data.Conduit.Binary as C (sourceFile)
 import qualified Data.Text as T
-import           Network.AWS.Data (toText)
 import           Network.AWS.EC2
+import           Rifactor.AWS
 import           Rifactor.Types
 import           System.IO (stdout)
 
+-- | Read in the config file (JSON). If we failed to read the file,
+-- exit. If we read it OK, then continue on to querying Amazon for
+-- pending reserverd instance modifications.
+--
+-- If we have any of ReservedInstanceModifications in progress then we
+-- have to stop right here. It's too hard to reason about Amazon
+-- accepting or denying any of our change requests. We can't really
+-- build a plan on top of a mystery outcome. We'll just wait this
+-- round if that's the case.
+--
+-- If we don't have any pending modifications, then we get on with the
+-- show. We query Amazon for data on EC2 Instances &
+-- ReservedInstances in every Region in the config file & for every
+-- set of Amazon IAM credentials in the account.
+--
+-- We then build a model in memory of what's going on over at Amazon
+-- WRT which instances actually count against our ReservedInstances &
+-- which ones don't.
 plan :: Options -> IO ()
 plan opts =
   do config <-
@@ -64,106 +76,29 @@ plan opts =
                      (Left err) -> print err >> exitFailure
                      (Right xs) ->
                        do let (reserved,_) = interpret xs
-                          traverse_ (putStrLn . T.unpack . summary)
-                                    (filter isModifiedReserved reserved)
+                          traverse_ (putStrLn . T.unpack . summary) reserved -- (filter isModifiedReserved reserved)
+                                                                            -- TODO print a nice summary of instances & reservations groupBy (region, az, instance type, network-type)
 
-initEnvs :: Config -> Logger -> IO [Env]
-initEnvs cfg lgr =
-  for [(a,r) | r <- (cfg ^. regions)
-             , a <- (cfg ^. accounts)]
-      (\(a,r) ->
-         (getEnv r
-                 (FromKeys (AccessKey (B.pack (a ^. accessKey)))
-                           (SecretKey (B.pack (a ^. secretKey)))) <&>
-          (envLogger .~ lgr)))
-
-checkPendingModifications :: [Env] -> AWS ()
-checkPendingModifications =
-  traverse_ (\e ->
-               runAWST e
-                       (do rims <-
-                             view drimrReservedInstancesModifications <$>
-                             send (describeReservedInstancesModifications &
-                                   (drimFilters .~
-                                    [filter' "status" &
-                                     fValues .~
-                                     [T.pack "processing"]]))
-                           if null rims
-                              then pure ()
-                              else ಠ_ಠ "There are pending RI modifications."))
-
+-- | Fetch all the Model data we need from Amazon via their APIs.
 fetchFromAmazon :: [Env] -> AWS Model
 fetchFromAmazon es =
   pure (,) <*> fetchReservedInstances es <*> fetchInstances es
 
-fetchReservedInstances :: [Env] -> AWS [Reserved]
-fetchReservedInstances =
-  liftA concat .
-  traverse (\e ->
-              do xs <-
-                   hoistEither =<<
-                   runAWST e
-                           (view drirReservedInstances <$>
-                            send (describeReservedInstances & driFilters .~
-                                  [filter' "state" &
-                                   fValues .~
-                                   [toText RISActive]]))
-                 pure (map (Reserved e) xs))
-
-fetchInstances :: [Env] -> AWS [OnDemand]
-fetchInstances =
-  liftA concat .
-  traverse (\e ->
-              do xs <-
-                   hoistEither =<<
-                   runAWST e
-                           (view dirReservations <$>
-                            send (describeInstances & di1Filters .~
-                                  [filter' "instance-state-name" &
-                                   fValues .~
-                                   [toText ISNRunning]]))
-                 pure (map (OnDemand e) (concatMap (view rInstances) xs)))
-
-mergeInstances :: (Reserved -> Bool)
-               -> (Reserved -> OnDemand -> Bool)
-               -> (Reserved -> [Instance] -> Reserved)
-               -> Transition
-mergeInstances isMatchingReserved isMatchingInstance convert (reserved,nodes) =
-  let (unmatchedReserved,otherReserved) =
-        partition isMatchingReserved reserved
-  in go otherReserved (unmatchedReserved,nodes)
-  where go rs ([],ys) = (rs,ys)
-        go rs (xs,[]) = (rs ++ xs,[])
-        go rs ((x:xs),ys) =
-          case (partition (isMatchingInstance x) ys) of
-            ([],_) ->
-              go (x : rs)
-                 (xs,ys)
-            (matched,unmatched) ->
-              let (used,unused) =
-                    splitAt (fromMaybe 0
-                                       (x ^?! reReservedInstances ^.
-                                        ri1InstanceCount))
-                            matched
-              in if length used == 0
-                    then go (x : rs)
-                            (xs,(matched ++ unmatched))
-                    else go (convert x (map (view odInstance) used) :
-                             rs)
-                            (xs,(unused ++ unmatched))
-
-interpret :: Transition
-interpret = moveReserved . matchReserved
+-- | Take an initial Model and then transition it through steps &
+-- return the new Model.
+transition :: Transition
+transition =
+  (combineReserved . splitReserved . moveReserved . matchReserved)
 
 -- | Match unused ReservedInstances with OnDemand nodes that
 -- match by instance type, network type & availability zone.
 matchReserved :: Transition
 matchReserved =
   mergeInstances isReserved isPerfectMatch convertToUsed
-  where isPerfectMatch (Reserved re r) (OnDemand ie i) =
+  where isPerfectMatch (Reserved er r) (OnDemand ei i) =
           (r ^. ri1AvailabilityZone == i ^. i1Placement ^. pAvailabilityZone) &&
           (r ^. ri1InstanceType == i ^? i1InstanceType) &&
-          (re ^. envRegion == ie ^. envRegion)
+          (er ^. envRegion == ei ^. envRegion)
         -- TODO Add network type (Classic vs VPN)
         isPerfectMatch _ _ = False
         convertToUsed r uis =
@@ -176,9 +111,9 @@ matchReserved =
 moveReserved :: Transition
 moveReserved =
   mergeInstances isReserved isWorkableMatch convertToMove
-  where isWorkableMatch (Reserved re r) (OnDemand ie i) =
+  where isWorkableMatch (Reserved er r) (OnDemand ei i) =
           (r ^. ri1InstanceType == i ^? i1InstanceType) &&
-          (re ^. envRegion == ie ^. envRegion)
+          (er ^. envRegion == ei ^. envRegion)
         isWorkableMatch _ _ = False
         convertToMove r uis =
           (MoveReserved (r ^. reEnv)
@@ -191,9 +126,9 @@ moveReserved =
 splitReserved :: Transition
 splitReserved =
   mergeInstances isUsedReserved isWorkableMatch convertToSplit
-  where isWorkableMatch (UsedReserved re r is) (OnDemand ie i) =
+  where isWorkableMatch (UsedReserved er r is) (OnDemand ei i) =
           (r ^. ri1InstanceType == i ^? i1InstanceType) &&
-          (re ^. envRegion == ie ^. envRegion) &&
+          (er ^. envRegion == ei ^. envRegion) &&
           maybe False
                 ((<) (length is))
                 (r ^. ri1InstanceCount)
@@ -229,8 +164,40 @@ combineReserved (reserved,onDemand) =
 resizeReserved :: Transition
 resizeReserved = ಠ_ಠ "TODO"
 
-noKeysEnv :: IO Env
-noKeysEnv =
-  getEnv NorthVirginia
-         (FromKeys (AccessKey B.empty)
-                   (SecretKey B.empty))
+-- | This function is an abstraction. We repeatedly need to take a
+-- reservation that we know little about & associate nodes with it
+-- based on criteria.
+--
+-- Using the supplied first argument as a filter, find the Reserved
+-- that match. From that list look for any OnDemand that match the
+-- second argument (as a filter). If we have a match then we pass data
+-- to the 3rd function which creates a new Reserved record (which we
+-- track). In the end you are returned a new version of the Model with
+-- instances accounted for & attached to the correct Reserved records.
+mergeInstances :: (Reserved -> Bool)
+               -> (Reserved -> OnDemand -> Bool)
+               -> (Reserved -> [Instance] -> Reserved)
+               -> Transition
+mergeInstances isMatchingReserved isMatchingInstance convert (reserved,nodes) =
+  let (unmatchedReserved,otherReserved) =
+        partition isMatchingReserved reserved
+  in go otherReserved (unmatchedReserved,nodes)
+  where go rs ([],ys) = (rs,ys)
+        go rs (xs,[]) = (rs ++ xs,[])
+        go rs ((x:xs),ys) =
+          case (partition (isMatchingInstance x) ys) of
+            ([],_) ->
+              go (x : rs)
+                 (xs,ys)
+            (matched,unmatched) ->
+              let (used,unused) =
+                    splitAt (fromMaybe 0
+                                       (x ^?! reReservedInstances ^.
+                                        ri1InstanceCount))
+                            matched
+              in if length used == 0
+                    then go (x : rs)
+                            (xs,(matched ++ unmatched))
+                    else go (convert x (map (view odInstance) used) :
+                             rs)
+                            (xs,(unused ++ unmatched))
