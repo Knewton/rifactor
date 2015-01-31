@@ -81,12 +81,11 @@ plan opts =
 -- | Take an initial Model and then transition it through steps &
 -- return the new Model.
 transition :: Transition
-transition =
-  combineReserved .
-  resizeReserved .
-  splitReserved .
-  moveReserved .
-  matchReserved
+transition = combineReserved . packReserved . matchReserved
+
+-- | Pack ReservedInstances as tightly as possible.
+packReserved :: Transition
+packReserved = splitReserved . moveReserved -- TODO replace with universal bin-packing algorithm
 
 -- | Match unused ReservedInstances with OnDemand nodes that
 -- match by instance type, network type & availability zone.
@@ -131,11 +130,6 @@ splitReserved =
           SplitReserved (r ^. reEnv)
                         (r ^?! reReservedInstances)
                         (r ^?! reInstances)
-
--- | Resize Reserved Instances that have capacity if we can accomidate
--- nodes of different instance types.
-resizeReserved :: Transition
-resizeReserved = id
 
 -- | Of the Reserved Instances that aren't currently being modified,
 -- combine RIs where conditions permit (see Amazon specs).
