@@ -108,23 +108,31 @@ instance Summarizable Model where
     commaSep (map summary od)
 
 instance Summarizable Reserved where
-  summary (Reserved _ r) = "Reserved (UNUSED) " <> summary r
+  summary (Reserved _ r) = "Unused " <> summary r
   summary (UsedReserved _ r is) =
-    "Reserved " <> summary r <> " used by [" <>
+    "Used " <> summary r <> " by " <>
+    (T.pack $ show $ length is) <>
+    " nodes [" <>
     commaSep (map summary is) <>
     "]"
   summary (MoveReserved _ r is) =
     "Move " <>
     (summary r) <>
-    " for [" <>
+    " for " <>
+    (T.pack $ show $ length is) <>
+    " nodes [" <>
     commaSep (map summary is) <>
     "]"
   summary (SplitReserved _ r is nis) =
     "Split " <>
     (summary r) <>
-    " partially used by [" <>
+    " used by " <>
+    (T.pack $ show $ length is) <>
+    " nodes [" <>
     commaSep (map summary is) <>
-    "] by adding [" <>
+    "] by adding " <>
+    (T.pack $ show $ length nis) <>
+    " more nodes [" <>
     commaSep (map summary nis) <>
     "]"
   summary (CombineReserved _ rs) =
@@ -134,18 +142,17 @@ instance Summarizable Reserved where
   summary (ResizeReserved _ r is) =
     "Resize [" <>
     (summary r) <>
-    " for [" <>
+    " for " <>
+    (T.pack $ show $ length is) <>
+    " nodes [" <>
     commaSep (map summary is) <>
     "]"
 
 instance Summarizable OnDemand where
-  summary x =
-    "On-Demand " <>
-    summary (x ^. odInstance)
+  summary = summary . view odInstance
 
 instance Summarizable ReservedInstances where
   summary x =
-    "Reserved-Instances " <>
     fromMaybe T.empty (x ^. ri1ReservedInstancesId) <>
     "|" <>
     toText (fromMaybe 0 (x ^. ri1InstanceCount)) <>
@@ -156,7 +163,6 @@ instance Summarizable ReservedInstances where
 
 instance Summarizable Instance where
   summary x =
-    "Instance " <>
     (x ^. i1InstanceId) <>
     "|" <>
     toText (x ^. i1InstanceType) <>
