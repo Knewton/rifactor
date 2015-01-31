@@ -25,6 +25,7 @@ import           Control.Monad.Trans.AWS (Env, envRegion)
 import           Data.Time (UTCTime, getCurrentTime)
 import qualified Data.Text as T
 import           Network.AWS.EC2
+import           Rifactor.AWS
 import           Rifactor.Plan
 import           Rifactor.Types
 import           Test.Tasty
