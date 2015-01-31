@@ -155,6 +155,10 @@ combineReserved (reserved,onDemand) =
   where isWorkableMatch x y =
           ((x ^?! reReservedInstances ^. ri1End) ==
            (y ^?! reReservedInstances ^. ri1End)) &&
+          ((x ^?! reReservedInstances ^. ri1OfferingType) ==
+           (y ^?! reReservedInstances ^. ri1OfferingType)) &&
+          ((x ^?! reReservedInstances ^. ri1InstanceType) ==
+           (y ^?! reReservedInstances ^. ri1InstanceType)) &&
           ((x ^. reEnv ^. envRegion) ==
            (y ^. reEnv ^. envRegion))
         combine [] = []
