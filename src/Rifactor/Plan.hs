@@ -86,8 +86,8 @@ fetchFromAmazon es =
 -- return the new Model.
 transition :: Transition
 transition =
-  resizeReserved .
   combineReserved .
+  resizeReserved .
   splitReserved .
   moveReserved .
   matchReserved
@@ -136,6 +136,11 @@ splitReserved =
                         (r ^?! reReservedInstances)
                         (r ^?! reInstances)
 
+-- | Resize Reserved Instances that have capacity if we can accomidate
+-- nodes of different instance types.
+resizeReserved :: Transition
+resizeReserved = id
+
 -- | Of the Reserved Instances that aren't currently being modified,
 -- combine RIs where conditions permit (see Amazon specs).
 combineReserved :: Transition
@@ -161,11 +166,6 @@ combineReserved (reserved,onDemand) =
         combine rs@(r:_) =
           [CombineReserved (r ^. reEnv)
                            (map (^?! reReservedInstances) rs)]
-
--- | Resize Reserved Instances that have capacity if we can accomidate
--- nodes of different instance types.
-resizeReserved :: Transition
-resizeReserved = id
 
 -- | This function is an abstraction. We repeatedly need to take a
 -- Reserved that we know little about & associate OnDemand instances
