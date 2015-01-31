@@ -161,8 +161,9 @@ mkReserved rCount az iCount itype =
 mkInstances :: Int -> String -> InstanceType -> IO [OnDemand]
 mkInstances iCount az itype =
   do time <- getCurrentTime
+     env <- noKeysEnv
      mapM (\instanceNum ->
-             pure (OnDemand (iFixture az itype time (show instanceNum))))
+             pure (OnDemand env (iFixture az itype time (show instanceNum))))
           ([1 .. iCount] :: [Int])
 
 riFixture :: Int -> String -> InstanceType -> UTCTime -> ReservedInstances
