@@ -14,7 +14,7 @@
 -- Stability   : experimental
 -- Portability : non-portable (GHC extensions)
 
-module Rifactor.Plan (plan) where
+module Rifactor.Plan where
 
 import           BasePrelude hiding (getEnv)
 import           Control.Lens
