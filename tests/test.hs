@@ -72,9 +72,9 @@ matchSpec =
 packSpec :: IO TestTree
 packSpec =
   testSpec "Packing Reserved Instances" $
-  do describe "40 reserved m2.4xlarge/us-east-1a" $
-       context "with 20 instances m2.4xlarge/us-east-1b" $
-       do context "and 20 instances m2.4xlarge/us-east-1c" $
+  do describe "40 reserved (m2.4xlarge/us-east-1a)" $
+       context "with 20 instances (m2.4xlarge/us-east-1b)" $
+       do context "and 20 instances (m2.4xlarge/us-east-1c)" $
             it "will pack all instances into reserved" $
             do os <-
                  liftM2 (++)
@@ -93,7 +93,7 @@ packSpec =
                        reNewInstances) `shouldBe`
                  40
                cs' `shouldBe` empty
-          context "and 20 instances m2.2xlarge/us-east-1c" $
+          context "and 20 instances (m2.2xlarge/us-east-1c)" $
             it "will pack all instances into reserved" $
             do os <-
                  liftM2 (++)
@@ -112,9 +112,9 @@ packSpec =
                        reNewInstances) `shouldBe`
                  60
                cs' `shouldBe` empty
-     describe "40 reserved m2.4xlarge/us-east-1a" $
-       context "and 20 instances m2.4xlarge/us-east-1a" $
-       do context "and 20 instances m2.4xlarge/us-east-1c" $
+     describe "40 reserved (m2.4xlarge/us-east-1a)" $
+       context "and 20 instances (m2.4xlarge/us-east-1a)" $
+       do context "and 20 instances (m2.4xlarge/us-east-1c)" $
             it "will pack all instances into reserved" $
             do os <-
                  liftM2 (++)
@@ -137,8 +137,8 @@ packSpec =
 combineSpec :: IO TestTree
 combineSpec =
   testSpec "Combining Reserved Instances" $
-  do describe "2x10 reserved m2.4xlarge/us-east-1a" $
-       context "and 0 instances m2.4xlarge/us-east-1" $
+  do describe "2x10 reserved (m2.4xlarge/us-east-1a)" $
+       context "and 0 instances (m2.4xlarge/us-east-1)" $
        it "will combine reserved instances purchased at the same time" $
        do rs <-
             mkReserved 2 "us-east-1a" 10 M2_4XLarge
