@@ -71,7 +71,9 @@ data Account =
 --     "Oregon"
 --   ]
 -- }
-data Config = Config [Account] [Region]
+data Config =
+  Config {_accounts :: [Account]
+         ,_regions :: [Region]}
 
 -- | We need an instance of Eq so our derived instance of Eq for
 -- Reserved & OnDemand will work.  Nevermind "orphaned instance"
