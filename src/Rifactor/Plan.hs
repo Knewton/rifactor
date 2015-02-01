@@ -3,6 +3,7 @@
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE RecordWildCards #-}
 
 -- Module      : Rifactor.Plan
 -- Copyright   : (c) 2015 Knewton, Inc <se@knewton.com>
@@ -23,7 +24,6 @@ import qualified Data.Aeson as A
 import           Data.Conduit (($$))
 import qualified Data.Conduit.Attoparsec as C (sinkParser)
 import qualified Data.Conduit.Binary as C (sourceFile)
-import qualified Data.Text as T
 import           Network.AWS.EC2
 import           Rifactor.AWS
 import           Rifactor.Types
@@ -72,10 +72,9 @@ plan opts =
                      runAWST env' (fetchFromAmazon es)
                    case results of
                      (Left err) -> print err >> exitFailure
-                     (Right xs) ->
-                       do let (reserved,_) = transition xs
-                          traverse_ (putStrLn . T.unpack . summary)
-                                    (filter isModifiedReserved reserved)
+                     (Right m) ->
+                       traverse_ (print . summary)
+                                 ((transition m) ^. reserved)
 
 -- TODO print a nice summary of instances & reservations groupBy
 -- (region, az, instance type, network-type)
@@ -83,81 +82,39 @@ plan opts =
 -- | Take an initial Model and then transition it through steps &
 -- return the new Model.
 transition :: Transition
-transition = combineReserved . packReserved . matchReserved
+transition = packReserved . combineReserved . matchReserved
 
--- | Pack ReservedInstances as tightly as possible.
-packReserved :: Transition
-packReserved = splitReserved . moveReserved -- TODO replace with universal bin-packing algorithm
-
--- | Match unused ReservedInstances with OnDemand nodes that
--- match by instance type, network type & availability zone.
+-- | Match Reserved with OnDemand nodes instance type, network type &
+-- availability zone.
 matchReserved :: Transition
-matchReserved =
-  mergeInstances isReserved isPerfectMatch convertToUsed
-  where isPerfectMatch (Reserved er r) (OnDemand ei i) =
+matchReserved = mergeInstances matchFn mergeFn
+  where matchFn (Reserved _ r _ _) (OnDemand _ i) =
           (r ^. ri1AvailabilityZone == i ^. i1Placement ^. pAvailabilityZone) &&
-          (r ^. ri1InstanceType == i ^? i1InstanceType) &&
-          (er ^. envRegion == ei ^. envRegion)
-        -- TODO Add network type (Classic vs VPN)
-        isPerfectMatch _ _ = False
-        convertToUsed r =
-          UsedReserved (r ^. reEnv)
-                       (r ^?! reReservedInstances)
+          (r ^. ri1InstanceType == i ^? i1InstanceType)
+        mergeFn (Reserved e r is nis) (OnDemand _ i) =
+          (Reserved e r (i : is) nis)
 
--- | Move unused ReservedInstances around to accommidate nodes that
--- match by instance type.
-moveReserved :: Transition
-moveReserved =
-  mergeInstances isReserved isWorkableMatch convertToMove
-  where isWorkableMatch (Reserved er r) (OnDemand ei i) =
-          (r ^. ri1InstanceType == i ^? i1InstanceType) &&
-          (er ^. envRegion == ei ^. envRegion)
-        isWorkableMatch _ _ = False
-        convertToMove r =
-          MoveReserved (r ^. reEnv)
-                       (r ^?! reReservedInstances)
+packReserved :: Transition
+packReserved = mergeInstances matchFn mergeFn
+  where matchFn _ _ = True
+        mergeFn (Reserved e r is nis) (OnDemand _ i) =
+          (Reserved e r is (i : nis))
 
--- | Split used ReservedInstances up that have remaining capacity but
--- still have slots left for nodes with the same instance type but
--- with other availability zones or network types.
-splitReserved :: Transition
-splitReserved =
-  mergeInstances isUsedReserved isWorkableMatch convertToSplit
-  where isWorkableMatch (UsedReserved er r is) (OnDemand ei i) =
-          (r ^. ri1InstanceType == i ^? i1InstanceType) &&
-          (er ^. envRegion == ei ^. envRegion) &&
-          maybe False (length is <) (r ^. ri1InstanceCount)
-        isWorkableMatch _ _ = False
-        convertToSplit r =
-          SplitReserved (r ^. reEnv)
-                        (r ^?! reReservedInstances)
-                        (r ^?! reInstances)
-
--- | Of the Reserved Instances that aren't currently being modified,
+-- | Of the Reserved Instances that aren't currently being used,
 -- combine RIs where conditions permit (see Amazon specs).
 combineReserved :: Transition
-combineReserved (reserved,onDemand) =
-  let (modified,notModified) =
-        partition isModifiedReserved reserved
-      reducedNotModified =
-        concatMap combine (groupBy isWorkableMatch notModified)
-  in (modified ++ reducedNotModified,onDemand)
-  where isWorkableMatch x y =
-          ((x ^?! reReservedInstances ^. ri1End) ==
-           (y ^?! reReservedInstances ^. ri1End)) &&
-          ((x ^?! reReservedInstances ^. ri1OfferingType) ==
-           (y ^?! reReservedInstances ^. ri1OfferingType)) &&
-          -- TODO we have a little wiggle room in the instance type
-          -- once we have our calculator ready
-          ((x ^?! reReservedInstances ^. ri1InstanceType) ==
-           (y ^?! reReservedInstances ^. ri1InstanceType)) &&
-          ((x ^. reEnv ^. envRegion) ==
-           (y ^. reEnv ^. envRegion))
-        combine [] = []
-        combine rs@[_] = rs
-        combine rs@(r:_) =
-          [CombineReserved (r ^. reEnv)
-                           (map (^?! reReservedInstances) rs)]
+combineReserved (Model os rs cs) =
+  go (groupBy matches rs) [] cs
+  where go [] rs' cs' = Model os rs' cs'
+        go (g:gs) rs' cs' =
+          if length g > 1
+             then go gs rs' (cons (Combine g) cs')
+             else go gs (g ++ rs') cs'
+        matches (Reserved er0 r0 _ _) (Reserved er1 r1 _ _) =
+          (r0 ^. ri1End == r1 ^. ri1End) &&
+          (r0 ^. ri1OfferingType == r1 ^. ri1OfferingType) &&
+          (r0 ^. ri1InstanceType == r1 ^. ri1InstanceType) &&
+          (er0 ^. envRegion == er1 ^. envRegion)
 
 -- | This function is an abstraction. We repeatedly need to take a
 -- Reserved that we know little about & associate OnDemand instances
@@ -171,30 +128,54 @@ combineReserved (reserved,onDemand) =
 --
 -- This is repeated for every Reserved in the Model. At the end of the
 -- recursion you are left with a new version of the Model.
-mergeInstances :: (Reserved -> Bool)
-               -> (Reserved -> OnDemand -> Bool)
-               -> (Reserved -> [Instance] -> Reserved)
+mergeInstances :: (Reserved -> OnDemand -> Bool)
+               -> (Reserved -> OnDemand -> Reserved)
                -> Transition
-mergeInstances isMatchingReserved isMatchingInstance convert (reserved,nodes) =
-  let (unmatchedReserved,otherReserved) =
-        partition isMatchingReserved reserved
-  in go otherReserved (unmatchedReserved,nodes)
-  where go rs ([],ys) = (rs,ys)
-        go rs (xs,[]) = (rs ++ xs,[])
-        go rs (x:xs,ys) =
-          case partition (isMatchingInstance x) ys of
-            ([],_) ->
-              go (x : rs)
-                 (xs,ys)
-            (matched,unmatched) ->
-              let (used,unused) =
-                    splitAt (fromMaybe 0
-                                       (x ^?! reReservedInstances ^.
-                                        ri1InstanceCount))
-                            matched
-              in if null used
-                    then go (x : rs)
-                            (xs,matched ++ unmatched)
-                    else go (convert x (map (view odInstance) used) :
-                             rs)
-                            (xs,unused ++ unmatched)
+mergeInstances matchFn mergeFn (Model os rs cs) =
+  go os rs []
+  where go [] ys zs = Model [] (ys ++ zs) cs
+        go xs [] zs = Model xs zs cs
+        go xs (y:ys) zs =
+          case partition (matchFn y) xs of
+            ([],_) -> go xs ys (y : zs)
+            (hits,misses) ->
+              let (result,rejects) =
+                    foldl (\(r,rejected) o ->
+                             if (isInstanceTypeMatch r o)
+                                then (mergeFn r o,rejected)
+                                else (r,o : rejected))
+                          (y,[])
+                          hits
+              in go (misses ++ rejects)
+                    ys
+                    (result : zs)
+
+isInstanceTypeMatch :: Reserved -> OnDemand -> Bool
+isInstanceTypeMatch (Reserved _ r _ _) _
+  | isNothing (r ^. ri1InstanceCount) = False
+isInstanceTypeMatch (Reserved _ r _ _) _
+  | isNothing (r ^. ri1InstanceType) = False
+isInstanceTypeMatch (Reserved _ r old new) (OnDemand _ i) =
+  let (Just rCount) = r ^. ri1InstanceCount
+      (Just rType) = r ^. ri1InstanceType
+      (iGroup,iFactor) =
+        instanceClass (i ^. i1InstanceType)
+      (rGroup,rFactor) = instanceClass rType
+  in if rGroup /= iGroup
+        then False
+        else let rCapacity =
+                   (realToFrac rCount) *
+                   rFactor
+                 rOldUsed =
+                   ((realToFrac (length old)) *
+                    rFactor)
+                 rNewUsed =
+                   realToFrac
+                     (foldl (\a i ->
+                               a +
+                               (instanceClass (i ^. i1InstanceType) ^.
+                                _2))
+                            0
+                            new)
+             in ((rCapacity - rOldUsed - rNewUsed) >=
+                 iFactor)

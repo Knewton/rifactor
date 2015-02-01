@@ -71,9 +71,7 @@ data Account =
 --     "Oregon"
 --   ]
 -- }
-data Config =
-  Config {_accounts :: [Account]
-         ,_regions :: [Region]}
+data Config = Config [Account] [Region]
 
 -- | We need an instance of Eq so our derived instance of Eq for
 -- Reserved & OnDemand will work.  Nevermind "orphaned instance"
@@ -89,45 +87,60 @@ data OnDemand =
            ,_odInstance :: Instance}
   deriving (Eq)
 
--- | Reserved represents ReservedInstances that are going through
--- transitions as we figure out what they are & what to do with them.
--- Reserved starts out as Reserved (Unknown/Unused) and through a
--- series of Transition functions, comes out the other end as
--- CombineReserved, SplitReserved, etc.
-data Reserved
-  = Reserved {_reEnv :: Env
-             ,_reReservedInstances :: ReservedInstances}
-  | UsedReserved {_reEnv :: Env
-                 ,_reReservedInstances :: ReservedInstances
-                 ,_reInstances :: [Instance]}
-  | MoveReserved {_reEnv :: Env
-                 ,_reReservedInstances :: ReservedInstances
-                 ,_reNewInstances :: [Instance]}
-  | SplitReserved {_reEnv :: Env
-                  ,_reReservedInstances :: ReservedInstances
-                  ,_reInstances :: [Instance]
-                  ,_reNewInstances :: [Instance]}
-  | CombineReserved {_reEnv :: Env
-                    ,_reReservedInstances' :: [ReservedInstances]}
-  | ResizeReserved {_reEnv :: Env
-                   ,_reReservedInstances :: ReservedInstances
-                   ,_reInstances :: [Instance]}
+data Reserved =
+  Reserved {_reEnv :: Env
+           ,_reReserved :: ReservedInstances
+           ,_reInstances :: [Instance]
+           ,_reNewInstances :: [Instance]}
   deriving (Eq)
 
--- | This is our (simple) data model.  We have a list of Reserved
--- instances and we have a list of OnDemand instances.  We try to
--- match them together as we run through our algorithms.
-type Model = ([Reserved],[OnDemand])
+data Combine =
+  Combine {_coReserved :: [Reserved]}
+  deriving (Eq)
+
+data Model =
+  Model {_onDemand :: [OnDemand]
+        ,_reserved :: [Reserved]
+        ,_combined :: [Combine]}
+  deriving (Eq)
 
 -- | A Transition represents a state transition between two models.
 -- It is the type signature of several functions that transform the
 -- Model.
 type Transition = Model -> Model
 
--- | This is hear just for fun as a unicode alias to "error" (used
--- when we want to bail from an unrecoverable error condition.)
-ಠ_ಠ :: String -> a
-ಠ_ಠ = error
+data InstanceGroup
+  = C1
+  | C2
+  | C3
+  | C4
+  | CC1
+  | CC2
+  | CG1
+  | CR1
+  | G2
+  | HI1
+  | HS1
+  | HS2
+  | I2
+  | M1
+  | M2
+  | M3
+  | R3
+  | T1
+  | T2
+  deriving (Show,Eq,Enum)
+
+data InstanceSize
+  = Micro
+  | Small
+  | Medium
+  | Large
+  | XLarge
+  | XLarge2X
+  | XLarge4X
+  | XLarge8X
+  deriving (Show,Eq,Enum)
 
 {-
 Lens: These declarations are here to generate code for us.  They
@@ -136,7 +149,9 @@ our records.
 -}
 
 $(makeLenses ''Account)
+$(makeLenses ''Combine)
 $(makeLenses ''Config)
+$(makeLenses ''Model)
 $(makeLenses ''OnDemand)
 $(makeLenses ''Options)
 $(makeLenses ''Reserved)
@@ -160,8 +175,8 @@ $(deriveJSON deriveOptions ''Region) -- We even add a JSON instance
 
 -- | This partial function will intersperse commas through any list of
 -- Text given it.
-commaSep :: [Text] -> Text
-commaSep = T.intercalate (T.pack ", ")
+sep :: [Text] -> Text
+sep = T.intercalate (T.pack " | ")
 
 -- | This class is for summarizing things to print to the console (or
 -- a report).  It's pretty simple & straightforward. It only has
@@ -171,57 +186,40 @@ class Summarizable a where
 
 -- | A summary of a Model as a whole.
 instance Summarizable Model where
-  summary (rs,od) =
+  summary (Model rs od cs) =
     "Model " <>
-    commaSep (map summary rs) <>
-    " " <>
-    commaSep (map summary od)
+    sep (map summary rs) <>
+    " | " <>
+    sep (map summary od) <>
+    " | " <>
+    sep (map summary cs)
 
 -- | A summary of a Reserved recard (many different).
 instance Summarizable Reserved where
-  summary (Reserved _ r) = "Unused " <> summary r
-  summary (UsedReserved _ r is) =
-    "Used " <> summary r <> " by " <>
-    (T.pack $ show $ length is) <>
-    " nodes [" <>
-    commaSep (map summary is) <>
-    "]"
-  summary (MoveReserved _ r is) =
-    "Move " <>
-    (summary r) <>
-    " for " <>
-    (T.pack $ show $ length is) <>
-    " nodes [" <>
-    commaSep (map summary is) <>
-    "]"
-  summary (SplitReserved _ r is nis) =
-    "Split " <>
+  summary (Reserved _ r is nis) =
+    "Reserved " <>
     (summary r) <>
     " used by " <>
     (T.pack $ show $ length is) <>
     " nodes [" <>
-    commaSep (map summary is) <>
-    "] by adding " <>
-    (T.pack $ show $ length nis) <>
-    " more nodes [" <>
-    commaSep (map summary nis) <>
-    "]"
-  summary (CombineReserved _ rs) =
+    sep (map summary is) <>
+    if length nis > 0
+       then "] by adding " <>
+            (T.pack $ show $ length nis) <>
+            " more nodes [" <>
+            sep (map summary nis) <>
+            "]"
+       else "]"
+
+instance Summarizable Combine where
+  summary (Combine rs) =
     "Combine [" <>
-    commaSep (map summary rs) <>
-    "]"
-  summary (ResizeReserved _ r is) =
-    "Resize [" <>
-    (summary r) <>
-    " for " <>
-    (T.pack $ show $ length is) <>
-    " nodes [" <>
-    commaSep (map summary is) <>
+    sep (map summary rs) <>
     "]"
 
 -- | A summary of a OnDemand recard.
 instance Summarizable OnDemand where
-  summary = summary . view odInstance
+  summary (OnDemand _ i) = summary i
 
 -- | A summary of a ReservedInstances recard.
 instance Summarizable ReservedInstances where
@@ -242,41 +240,3 @@ instance Summarizable Instance where
     toText (x ^. i1InstanceType) <>
     "|" <>
     maybe T.empty toText (x ^. i1Placement ^. pAvailabilityZone)
-
-{- Misc -}
-
-{-
-NOTE: This is probably a better way to model OnDemand & Reserved so we
-can use the types & pattern match against them super expresively
-without having to resort to these tedious filter functions.  More on
-that in V2.  We need working over "perfectly modeled" at the moment.
--}
-
-isReserved :: Reserved -> Bool
-isReserved (Reserved{..}) = True
-isReserved _ = False
-
-isUsedReserved :: Reserved -> Bool
-isUsedReserved (UsedReserved{..}) = True
-isUsedReserved _ = False
-
-isMoveReserved :: Reserved -> Bool
-isMoveReserved (MoveReserved{..}) = True
-isMoveReserved _ = False
-
-isSplitReserved :: Reserved -> Bool
-isSplitReserved (SplitReserved{..}) = True
-isSplitReserved _ = False
-
-isCombineReserved :: Reserved -> Bool
-isCombineReserved (CombineReserved{..}) = True
-isCombineReserved _ = False
-
-isResizeReserved :: Reserved -> Bool
-isResizeReserved (ResizeReserved{..}) = True
-isResizeReserved _ = False
-
-isModifiedReserved :: Reserved -> Bool
-isModifiedReserved r =
-  (isSplitReserved r || isCombineReserved r || isMoveReserved r ||
-                                               isResizeReserved r)
