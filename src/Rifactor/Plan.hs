@@ -73,8 +73,12 @@ plan opts =
                    case results of
                      (Left err) -> print err >> exitFailure
                      (Right m) ->
-                       traverse_ (print . summary)
-                                 ((transition m) ^. reserved)
+                       do let result = transition m
+                          traverse_ (print . summary)
+                                    (filter (not . null . view reNewInstances)
+                                            (result ^. reserved))
+                          traverse_ (print . summary)
+                                    (result ^. combined)
 
 -- TODO print a nice summary of instances & reservations groupBy
 -- (region, az, instance type, network-type)
