@@ -204,14 +204,14 @@ instance Summarizable Reserved where
     (if length is > 0
         then " used by " <>
              (T.pack $ show $ length is) <>
-             " nodes [" <>
+             " [" <>
              sep (map summary is) <>
              "]"
         else "") <>
     (if length nis > 0
         then " adjusting for " <>
              (T.pack $ show $ length nis) <>
-             " more nodes [" <>
+             " more [" <>
              sep (map summary nis) <>
              "]"
         else "")
