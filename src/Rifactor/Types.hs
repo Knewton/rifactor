@@ -201,17 +201,20 @@ instance Summarizable Reserved where
   summary (Reserved _ r is nis) =
     "Reserved " <>
     (summary r) <>
-    " used by " <>
-    (T.pack $ show $ length is) <>
-    " nodes [" <>
-    sep (map summary is) <>
-    if length nis > 0
-       then "] by adding " <>
-            (T.pack $ show $ length nis) <>
-            " more nodes [" <>
-            sep (map summary nis) <>
-            "]"
-       else "]"
+    (if length is > 0
+        then " used by " <>
+             (T.pack $ show $ length is) <>
+             " nodes [" <>
+             sep (map summary is) <>
+             "]"
+        else "") <>
+    (if length nis > 0
+        then " adjusting for " <>
+             (T.pack $ show $ length nis) <>
+             " more nodes [" <>
+             sep (map summary nis) <>
+             "]"
+        else "")
 
 instance Summarizable Combine where
   summary (Combine rs) =
