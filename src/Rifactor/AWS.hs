@@ -37,10 +37,10 @@ noKeysEnv =
 -- records we need (1 for each region/account combo).  This is so we
 -- can cycle through them when aggergating data on AWS EC2.
 initEnvs :: Config -> Logger -> IO [Env]
-initEnvs (Config accounts regions) lgr =
-  for [(a,r) | r <- regions
-             , a <- accounts]
-      (\((Account _name key secret),r) ->
+initEnvs cfg lgr =
+  for [(a,r) | r <- cfg ^. regions
+             , a <- cfg ^. accounts]
+      (\(Account _name key secret,r) ->
          (getEnv r
                  (FromKeys (AccessKey (B.pack key))
                            (SecretKey (B.pack secret))) <&>
