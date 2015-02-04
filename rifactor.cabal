@@ -27,9 +27,9 @@ library
   ghc-options:         -Wall
   build-depends:       base          >=4.7   && <4.8
                      , aeson
-                     , amazonka      >=0.2.2 && <0.3
-                     , amazonka-core >=0.2.2 && <0.3
-                     , amazonka-ec2  >=0.2.2 && <0.3
+                     , amazonka      >=0.2.3 && <0.3
+                     , amazonka-core >=0.2.3 && <0.3
+                     , amazonka-ec2  >=0.2.3 && <0.3
                      , base-prelude
                      , bytestring
                      , conduit
@@ -50,9 +50,9 @@ executable rifactor
   ghc-options:         -Wall
   build-depends:       base          >=4.7   && <4.8
                      , aeson
-                     , amazonka      >=0.2.2 && <0.3
-                     , amazonka-core >=0.2.2 && <0.3
-                     , amazonka-ec2  >=0.2.2 && <0.3
+                     , amazonka      >=0.2.3 && <0.3
+                     , amazonka-core >=0.2.3 && <0.3
+                     , amazonka-ec2  >=0.2.3 && <0.3
                      , base-prelude
                      , bytestring
                      , conduit
