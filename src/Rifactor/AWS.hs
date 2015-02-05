@@ -163,3 +163,24 @@ sizeFactor XLarge   = 8
 sizeFactor XLarge2X = 16
 sizeFactor XLarge4X = 32
 sizeFactor XLarge8X = 64
+
+comparingReservedInstancesTypeAndLocation :: ReservedInstances -> ReservedInstances -> Ordering
+comparingReservedInstancesTypeAndLocation a b =
+  comparing (view ri1InstanceType) a b <>
+  comparing (view ri1AvailabilityZone) a b
+
+matchingReservedInstancesTypeAndLocation :: ReservedInstances -> ReservedInstances -> Bool
+matchingReservedInstancesTypeAndLocation a b =
+  (a ^. ri1InstanceType == b ^. ri1InstanceType) &&
+  (a ^. ri1AvailabilityZone == b ^. ri1AvailabilityZone)
+
+comparingInstanceTypeAndLocation :: Instance -> Instance -> Ordering
+comparingInstanceTypeAndLocation a b =
+  comparing (view i1InstanceType) a b <>
+  comparing (view pAvailabilityZone . view i1Placement) a b
+
+matchingInstanceTypeAndLocation :: Instance -> Instance -> Bool
+matchingInstanceTypeAndLocation a b =
+  (a ^. i1InstanceType == b ^. i1InstanceType) &&
+  (a ^. i1Placement ^. pAvailabilityZone == b ^. i1Placement ^.
+                                            pAvailabilityZone)

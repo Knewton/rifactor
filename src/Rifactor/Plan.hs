@@ -154,32 +154,46 @@ mergeInstances matchFn mergeFn (Model os rs cs) =
                     ys
                     (result : zs)
 
-isInstanceTypeMatch :: Reserved -> OnDemand -> Bool
-isInstanceTypeMatch (Reserved _ r _ _) _
-  | isNothing (r ^. ri1InstanceCount) = False
-isInstanceTypeMatch (Reserved _ r _ _) _
-  | isNothing (r ^. ri1InstanceType) = False
-isInstanceTypeMatch (Reserved _ r old new) (OnDemand _ i) =
-  let (Just rCount) = r ^. ri1InstanceCount
-      (Just rType) = r ^. ri1InstanceType
-      (iGroup,iFactor) =
-        instanceClass (i ^. i1InstanceType)
-      (rGroup,rFactor) = instanceClass rType
-  in if rGroup /= iGroup
-        then False
-        else let rCapacity =
-                   (realToFrac rCount) *
-                   rFactor
-                 rOldUsed =
-                   ((realToFrac (length old)) *
-                    rFactor)
-                 rNewUsed =
-                   realToFrac
-                     (foldl (\a i ->
-                               a +
-                               (instanceClass (i ^. i1InstanceType) ^.
-                                _2))
-                            0
-                            new)
-             in ((rCapacity - rOldUsed - rNewUsed) >=
-                 iFactor)
+-- TODO We need to auto-resolve reservation total capacity with used vs new instances.
+-- TODO we need to replay the model on AWS
+
+{-
+
+Executing Changes
+
+When we are just changing AZ for the same instance size, go for it.
+
+When we are just changing network for the same instance size, go for
+it.
+
+When we have plenty of capacity then just take what we need for new
+instances & leave the spare capacity like it is now.
+
+When we can't 'balance the books' do nothing
+
+-}
+
+doUpdateReserved r | isNothing (r ^. reReserved ^. ri1ReservedInstancesId) = undefined
+doUpdateReserved r =
+  do let config =
+           [(reservedInstancesConfiguration &
+             (ricAvailabilityZone ?~
+              T.pack "us-east-1c") &
+             (ricInstanceType ?~ M2_4XLarge) &
+             (ricPlatform ?~ "EC2-Classic") &
+             (ricInstanceCount ?~ 2))
+           ,(reservedInstancesConfiguration &
+             (ricAvailabilityZone ?~
+              T.pack "us-east-1b") &
+             (ricInstanceType ?~ M2_4XLarge) &
+             (ricPlatform ?~ "EC2-Classic") &
+             (ricInstanceCount ?~ 2))]
+     runAWST (r ^. reEnv)
+             (send (modifyReservedInstances &
+                    (mriReservedInstancesIds .~
+                     [r ^. reReserved ^. ri1ReservedInstancesId ^?! _Just]) &
+                    (mriClientToken ?~ "") &
+                    (mriTargetConfigurations .~ config))) >>=
+       hoistEither
+
+doCombineReserved = undefined
