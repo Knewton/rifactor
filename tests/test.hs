@@ -24,7 +24,9 @@ import qualified Data.Text as T
 import           Data.Time (UTCTime, getCurrentTime)
 import           Network.AWS.EC2
 import           Rifactor.AWS
+import           Rifactor.Capacity
 import           Rifactor.Plan
+import           Rifactor.Summary
 import           Rifactor.Types
 import           Test.Tasty
 import           Test.Tasty.Hspec

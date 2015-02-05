@@ -24,8 +24,11 @@ import qualified Data.Aeson as A
 import           Data.Conduit (($$))
 import qualified Data.Conduit.Attoparsec as C (sinkParser)
 import qualified Data.Conduit.Binary as C (sourceFile)
+import qualified Data.Text as T
 import           Network.AWS.EC2
 import           Rifactor.AWS
+import           Rifactor.Capacity
+import           Rifactor.Summary
 import           Rifactor.Types
 import           System.IO (stdout)
 
@@ -73,15 +76,47 @@ plan opts =
                    case results of
                      (Left err) -> print err >> exitFailure
                      (Right m) ->
-                       do let result = transition m
-                          traverse_ (print . summary)
-                                    (filter (not . null . view reNewInstances)
-                                            (result ^. reserved))
-                          traverse_ (print . summary)
-                                    (result ^. combined)
-
--- TODO print a nice summary of instances & reservations groupBy
--- (region, az, instance type, network-type)
+                       do when (opts ^. verbose) $
+                            do let instanceGroups =
+                                     map (\gs@(i:_) ->
+                                            (show (i ^. i1InstanceType)
+                                            ,(case (i ^. i1Placement ^.
+                                                    pAvailabilityZone) of
+                                                Nothing -> ""
+                                                Just az -> T.unpack az)
+                                            ,"instance"
+                                            ,(length gs)))
+                                         (groupBy matchingInstanceTypeAndLocation
+                                                  (sortBy comparingInstanceTypeAndLocation
+                                                          (map (view odInstance)
+                                                               (m ^. onDemand))))
+                                   reservedGroups =
+                                     map (\gs@(r:_) ->
+                                            (case (r ^. ri1InstanceType) of
+                                               Nothing -> "(unknown)"
+                                               Just rType -> show rType
+                                            ,case (r ^. ri1AvailabilityZone) of
+                                               Nothing -> "(unknown)"
+                                               Just az -> T.unpack az
+                                            ,"reserved"
+                                            ,sum (catMaybes (map (view ri1InstanceCount) gs))))
+                                         (groupBy matchingReservedInstancesTypeAndLocation
+                                                  (sortBy comparingReservedInstancesTypeAndLocation
+                                                          (map (view reReserved)
+                                                               (m ^. reserved))))
+                               putStrLn "Status:"
+                               traverse_ print
+                                         (sort (concat [instanceGroups
+                                                       ,reservedGroups]))
+                          let result = transition m
+                          when (opts ^. verbose) $
+                            do putStrLn "Changes:"
+                               traverse_ (putStrLn . T.unpack . summary)
+                                         (filter (not . null .
+                                                        view reNewInstances)
+                                                 (result ^. reserved))
+                               traverse_ (putStrLn . T.unpack . summary)
+                                         (result ^. combined)
 
 -- | Take an initial Model and then transition it through steps &
 -- return the new Model.
