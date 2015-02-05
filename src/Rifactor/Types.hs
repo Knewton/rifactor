@@ -79,7 +79,8 @@ data Config =
 -- Reserved & OnDemand will work.  Nevermind "orphaned instance"
 -- errors. We need this or else we have to implement our Eq instances
 -- for our Model by hand.
-instance Eq Env
+instance Eq Env where
+  (==) e0 e1 = (e0 ^. envRegion == e1 ^. envRegion)
 
 -- | OnDemand represents Instances that we haven't found a match (with
 -- ReservedInstances) yet.  We can also track the Env that we got the
