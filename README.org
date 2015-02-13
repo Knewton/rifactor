@@ -4,9 +4,14 @@
 
 * AWS Reserved Instance Optimization
 
-*** Problem
+  [[http://d0.awsstatic.com/video-thumbs/video-thumb-reserved-instance-marketplace-02.png]]
 
-*** Solution
+  - Initial Purchase
+  - Developers relaunching over the next year
+    - Image
+  - Gaps Cost Money
+  - Reconfiguration is tedious
+  - Amazon wont solve this while they are making $$$ and on top
 
 * Downloads
 
