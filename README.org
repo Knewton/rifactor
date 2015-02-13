@@ -2,6 +2,8 @@
 #+STARTUP: content noindent odd hidestars hideblocks
 #+OPTIONS: toc:nil
 
+[[https://travis-ci.org/Knewton/rifactor.png]]
+
 * AWS Reserved Instance Optimization
 
   Companies purchase Amazon AWS Reserved Instances as a way to cut
