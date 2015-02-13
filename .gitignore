@@ -3,3 +3,4 @@
 bower_components
 cabal.sandbox.config
 dist
+/README.md
