@@ -2,6 +2,8 @@
 #+STARTUP: content noindent odd hidestars hideblocks
 #+OPTIONS: toc:nil 
 
+[[http://d0.awsstatic.com/video-thumbs/video-thumb-reserved-instance-marketplace-02.png]]
+
 * AWS Reserved Instance Optimization
 
 *** Build

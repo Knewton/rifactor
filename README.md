@@ -1,3 +1,5 @@
+![img](//d0.awsstatic.com/video-thumbs/video-thumb-reserved-instance-marketplace-02.png)
+
 # AWS Reserved Instance Optimization
 
 ## Build
