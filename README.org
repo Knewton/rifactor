@@ -1,23 +1,90 @@
 #+TITLE: RIFactor
 #+STARTUP: content noindent odd hidestars hideblocks
-#+OPTIONS: toc:nil 
-
-[[http://d0.awsstatic.com/video-thumbs/video-thumb-reserved-instance-marketplace-02.png]]
+#+OPTIONS: toc:nil
 
 * AWS Reserved Instance Optimization
 
-*** Build
+*** Problem
 
-    You need GHC 7.8.x & cabal-install 1.22 (homebrew or PPA will
-    work). Take a peek at the .travis.yml file at the root of the
-    project for build steps.
+*** Solution
 
-*** Run
+* Downloads
 
+  *ALPHA*
+
+  This is *alpha* software.  It will not damage any running resources
+  on your amazon account.  It will only modify your reserved
+  instances.  Modifying reserved instances does not terminate (or
+  alter in any way) your running EC2 instances.
+
+  You should run the application with --dry-run to see what it would
+  attempt to do before actually running it without the dry run flag.
+
+  In all cases you should monitor your account(s) to make sure your
+  reserved instances are applicably applied during our alpha & beta
+  periods.
+
+*** [[http://place-where-we-download.com][Docker Image]]
+
+    Hosted on DockerHub.
+
+*** [[http://place-where-we-download.com][Ubuntu Linux (64) Binary]]
+
+    Requires that libgmp (apt) is installed.  We will create a PPA
+    with packages as time permits.
+
+*** [[http://place-where-we-download.com][Apple OS X (64) Binary]]
+
+    Requires that libgmp (Homebrew) is installed.
+
+*** [[http://place-where-we-download.com][Windows 7/8 (64) Binary]]
+
+    Requires that [[https://github.com/fpco/minghc][minghc]] is installed.  Later we could trim this down
+    to just libgmp. _I'm not a Windows expert though. Pull requests to
+    the Build section of this document are appreciated._
+
+* Running
+
+  #+begin_src sh
     rifactor --help
+  #+end_src
+
+*** Permissions
+
+    Create a new IAM User on each of your AWS accounts.  This user
+    account will be used to access your amazon account & modify
+    reserved instances.
+
+    Save the credentials (access key & secret key) given to you when
+    you create the new user.  The name of the IAM User does not
+    matter.  We only need the keys.
+
+    Now add a User Policy to your IAM User that allows describing EC2
+    resources & modifying EC2 Reserved Instances.
+
+    #+begin_src js
+      {
+        "Version": "2012-10-17",
+        "Statement": [
+          {
+            "Effect": "Allow",
+            "Action": "ec2:Describe*",
+            "Resource": "*"
+          },
+          {
+            "Effect": "Allow",
+            "Action": "ec2:ModifyReservedInstances",
+            "Resource": "*"
+          }
+        ]
+      }
+    #+end_src
 
 *** Config File
 
+    On your local filesystem. Create a JSON file with the details of
+    your accounts on AWS. Place the IAM access key & secret key from
+    each user into the config file.
     #+begin_src js
       {
         "accounts": [
@@ -50,26 +117,13 @@
       }
     #+end_src
 
-*** IAM Permissions
+* Building
 
-    Create a new IAM User.  Add a User Policy to your IAM User that
-    allows describing EC2 resources & modifying EC2 Reserved
-    Instances.
+  You need the GHC 7.8.x compiler & cabal-install (Homebrew or [[https://launchpad.net/~hvr/%2Barchive/ubuntu/ghc][Ubuntu
+  PPA]] will work). Review the [[.travis.yml][Travis CI Config File]] for build steps.
 
-    #+begin_src js
-      {
-        "Version": "2012-10-17",
-        "Statement": [
-          {
-            "Effect": "Allow",
-            "Action": "ec2:Describe*",
-            "Resource": "*"
-          },
-          {
-            "Effect": "Allow",
-            "Action": "ec2:ModifyReservedInstances",
-            "Resource": "*"
-          }
-        ]
-      }
-    #+end_src
+* Contributing
+
+  Create a fork & submit a [[pulls][pull request]] if you would like to
+  contribute new features.  Github [[issues]] is the place to file your
+  desires and grievences.
