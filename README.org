@@ -9,7 +9,7 @@
   instances, you must pick an Instance Type, Network Type &
   Availability Zone.
 
-  [[./docs/inital-ri.svg]]
+  [[./docs/inital-ri.png]]
 
   As long as you never change your running Instances, you will save
   money.  If you change your instances, you may end up paying double.
@@ -21,7 +21,7 @@
   reconfigure your Reserved Instances so they match your new
   configuration so you aren't paying double.
 
-  [[./docs/reality.svg]]
+  [[./docs/reality.png]]
 
   This application considers all of your reserved instances applicable
   to all of your other accounts listed in the config file.  If you
@@ -30,7 +30,7 @@
   running in them, the app will consider all of them as a whole & try
   to apply the best Reserved Instance reconfiguration.
 
-  [[./docs/multi-account.svg]]
+  [[./docs/multi-account.png]]
 
   If you have many unrelated accounts, then just create a config file
   for each account.
