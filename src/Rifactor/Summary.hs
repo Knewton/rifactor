@@ -21,7 +21,8 @@ import           Control.Lens
 import           Data.Text (Text)
 import qualified Data.Text as T
 import           Network.AWS.Data (toText)
-import           Network.AWS.EC2.Types hiding (Region)
+import qualified Network.AWS.EC2 as EC2
+import           Network.AWS.EC2 hiding (Instance,Region)
 import           Rifactor.Capacity
 import           Rifactor.Types
 
@@ -82,12 +83,12 @@ instance Summarizable Combine where
     sep (map summary rs) <>
     "]"
 
--- | A summary of a OnDemand recard.
-instance Summarizable OnDemand where
-  summary (OnDemand _ i) = summary i
+-- | A summary of a Instance recard.
+instance Summarizable Instance where
+  summary (Instance _ i) = summary i
 
 -- | A summary of a ReservedInstances recard.
-instance Summarizable ReservedInstances where
+instance Summarizable EC2.ReservedInstances where
   summary x =
     fromMaybe T.empty (x ^. ri1ReservedInstancesId) <>
     "|" <>
@@ -98,7 +99,7 @@ instance Summarizable ReservedInstances where
     fromMaybe T.empty (x ^. ri1AvailabilityZone)
 
 -- | A summary of a Instance recard.
-instance Summarizable Instance where
+instance Summarizable EC2.Instance where
   summary x =
     (x ^. i1InstanceId) <>
     "|" <>

@@ -22,7 +22,8 @@ import           Control.Lens
 import           Control.Monad.Trans.AWS (Env, envRegion)
 import qualified Data.Text as T
 import           Data.Time (UTCTime, getCurrentTime)
-import           Network.AWS.EC2
+import qualified Network.AWS.EC2 as EC2
+import           Network.AWS.EC2 hiding (Instance)
 import           Rifactor.AWS
 import           Rifactor.Capacity
 import           Rifactor.Plan
@@ -161,11 +162,11 @@ mkReserved rCount az iCount itype =
                   Reserved env (riFixture iCount az itype time) [] [])
                ([1 .. rCount] :: [Int]))
 
-mkInstances :: Int -> String -> InstanceType -> IO [OnDemand]
+mkInstances :: Int -> String -> InstanceType -> IO [Instance]
 mkInstances iCount az itype =
   do time <- getCurrentTime
      env <- noKeysEnv
-     mapM (pure . OnDemand env . iFixture az itype time . show)
+     mapM (pure . Instance env . iFixture az itype time . show)
           ([1 .. iCount] :: [Int])
 
 riFixture :: Int -> String -> InstanceType -> UTCTime -> ReservedInstances
@@ -177,7 +178,7 @@ riFixture count az itype time =
   (ri1End ?~ time) &
   (ri1InstanceTenancy ?~ Dedicated)
 
-iFixture :: String -> InstanceType -> UTCTime -> String -> Instance
+iFixture :: String -> InstanceType -> UTCTime -> String -> EC2.Instance
 iFixture az itype time iid =
   instance' (T.pack iid)
             (T.pack "ami-fake0")
@@ -201,7 +202,7 @@ instance Show Env where
 instance Show Model where
   show = T.unpack . summary
 
-instance Show OnDemand where
+instance Show Instance where
   show = T.unpack . summary
 
 instance Show Reserved where

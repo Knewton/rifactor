@@ -15,14 +15,15 @@
 
 module Rifactor.Capacity where
 
-import BasePrelude hiding (getEnv)
-import Control.Lens
-import Control.Monad.IO.Class ()
-import Network.AWS.EC2
-import Rifactor.AWS
-import Rifactor.Types
+import           BasePrelude hiding (getEnv)
+import           Control.Lens
+import           Control.Monad.IO.Class ()
+import qualified Network.AWS.EC2 as EC2
+import           Network.AWS.EC2 hiding (Instance,Region)
+import           Rifactor.AWS
+import           Rifactor.Types
 
-capacity :: Reserved -> Maybe (Double, Double)
+capacity :: Reserved -> Maybe (Float, Float)
 capacity r
   | isNothing (r ^. reReserved ^. ri1InstanceCount) ||
       isNothing (r ^. reReserved ^. ri1InstanceType) = Nothing
@@ -32,29 +33,29 @@ capacity r =
       (_,rFactor) = instanceClass rType
   in let rCapacity =
            (realToFrac rCount) *
-           (rFactor :: Double)
+           rFactor
          rOldUsed =
            (realToFrac (length (r ^. reInstances))) *
-           (rFactor :: Double)
+           rFactor
          rNewUsed =
            foldl (\a i ->
                     a +
-                    ((instanceClass (i ^. i1InstanceType)) ^.
+                    ((instanceClass (i ^. inInstance ^. i1InstanceType)) ^.
                      _2))
-                 (0 :: Double)
+                 0
                  (r ^. reNewInstances)
      in Just (rCapacity,rOldUsed + rNewUsed)
 
-isInstanceTypeMatch :: Reserved -> OnDemand -> Bool
+isInstanceTypeMatch :: Reserved -> Instance -> Bool
 isInstanceTypeMatch r _
   | isNothing (r ^. reReserved ^. ri1InstanceCount) ||
       isNothing (r ^. reReserved ^. ri1InstanceType) = False
 isInstanceTypeMatch r i =
   let (Just rType) = r ^. reReserved ^. ri1InstanceType
       (iGroup,iFactor) =
-        instanceClass (i ^. odInstance ^. i1InstanceType)
+        instanceClass (i ^. inInstance ^. i1InstanceType)
       (rGroup,_) =
-        instanceClass rType :: (InstanceGroup,Double)
+        instanceClass rType :: (InstanceGroup,Float)
   in rGroup == iGroup &&
      case (capacity r) of
        Nothing -> False
