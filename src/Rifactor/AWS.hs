@@ -19,7 +19,8 @@ import           Control.Monad.Trans.AWS hiding (accessKey, secretKey)
 import qualified Data.ByteString.Char8 as B
 import qualified Data.Text as T
 import           Network.AWS.Data (toText)
-import           Network.AWS.EC2
+import qualified Network.AWS.EC2 as EC2
+import           Network.AWS.EC2 hiding (Instance)
 import           Rifactor.Types
 
 -- | We sometimes need a set of empty keys in a prepackaged Env so
@@ -90,7 +91,7 @@ fetchReservedInstances =
 -- | Fetch all the Instance records we can from all AWS Env (all
 -- accounts/regions). Return a consolidated list of OnDemand records
 -- (1 per EC2 Instances).
-fetchInstances :: [Env] -> AWS [OnDemand]
+fetchInstances :: [Env] -> AWS [Instance]
 fetchInstances =
   liftA concat .
   traverse (\e ->
@@ -102,12 +103,9 @@ fetchInstances =
                                   [filter' "instance-state-name" &
                                    fValues .~
                                    [toText ISNRunning]]))
-                 pure (map (OnDemand e) (concatMap (view rInstances) xs)))
+                 pure (map (Instance e) (concatMap (view rInstances) xs)))
 
-
-instanceClass :: forall t.
-                  Fractional t
-               => InstanceType -> (InstanceGroup,t)
+instanceClass :: InstanceType -> (InstanceGroup,Float)
 instanceClass C1_Medium = (C1,sizeFactor Medium)
 instanceClass C1_XLarge = (C1,sizeFactor XLarge)
 instanceClass C3_2XLarge = (C3,sizeFactor XLarge2X)
@@ -152,9 +150,7 @@ instanceClass T2_Medium = (T2,sizeFactor Medium)
 instanceClass T2_Micro = (T2,sizeFactor Micro)
 instanceClass T2_Small = (T2,sizeFactor Small)
 
-sizeFactor :: forall a.
-              Fractional a
-           => InstanceSize -> a
+sizeFactor :: InstanceSize -> Float
 sizeFactor Micro    = 0.5
 sizeFactor Small    = 1
 sizeFactor Medium   = 2
@@ -164,23 +160,23 @@ sizeFactor XLarge2X = 16
 sizeFactor XLarge4X = 32
 sizeFactor XLarge8X = 64
 
-comparingReservedInstancesTypeAndLocation :: ReservedInstances -> ReservedInstances -> Ordering
+comparingReservedInstancesTypeAndLocation :: EC2.ReservedInstances -> EC2.ReservedInstances -> Ordering
 comparingReservedInstancesTypeAndLocation a b =
   comparing (view ri1InstanceType) a b <>
   comparing (view ri1AvailabilityZone) a b
 
-matchingReservedInstancesTypeAndLocation :: ReservedInstances -> ReservedInstances -> Bool
+matchingReservedInstancesTypeAndLocation :: EC2.ReservedInstances -> EC2.ReservedInstances -> Bool
 matchingReservedInstancesTypeAndLocation a b =
   (a ^. ri1InstanceType == b ^. ri1InstanceType) &&
   (a ^. ri1AvailabilityZone == b ^. ri1AvailabilityZone)
 
-comparingInstanceTypeAndLocation :: Instance -> Instance -> Ordering
+comparingInstanceTypeAndLocation :: EC2.Instance -> EC2.Instance -> Ordering
 comparingInstanceTypeAndLocation a b =
   comparing (view i1InstanceType) a b <>
   comparing (view pAvailabilityZone . view i1Placement) a b
 
-matchingInstanceTypeAndLocation :: Instance -> Instance -> Bool
+matchingInstanceTypeAndLocation :: EC2.Instance -> EC2.Instance -> Bool
 matchingInstanceTypeAndLocation a b =
   (a ^. i1InstanceType == b ^. i1InstanceType) &&
   (a ^. i1Placement ^. pAvailabilityZone == b ^. i1Placement ^.
-                                            pAvailabilityZone)
+                                             pAvailabilityZone)

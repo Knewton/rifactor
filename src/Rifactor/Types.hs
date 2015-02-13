@@ -20,7 +20,8 @@ import           BasePrelude
 import           Control.Lens
 import           Data.Aeson.TH (deriveJSON)
 import           Network.AWS
-import           Network.AWS.EC2.Types hiding (Region)
+import qualified Network.AWS.EC2 as EC2
+import           Network.AWS.EC2 hiding (Instance,Region)
 import           Rifactor.Types.Internal (deriveOptions)
 
 -- | Our runtime Options for planning any EC2 Reserved Instance
@@ -73,23 +74,23 @@ data Config =
          ,_regions :: [Region]}
 
 -- | We need an instance of Eq so our derived instance of Eq for
--- Reserved & OnDemand will work.  Nevermind "orphaned instance"
+-- Reserved & Instance will work.  Nevermind "orphaned instance"
 -- errors. We need this or else we have to implement our Eq instances
 -- for our Model by hand.
 instance Eq Env where
   (==) e0 e1 = (e0 ^. envRegion == e1 ^. envRegion)
 
--- | OnDemand represents Instances that we haven't found a match (with
+-- | Instance represents Instances that we haven't found a match (with
 -- ReservedInstances) yet.  We can also track the Env that we got the
 -- instance from in the record.
-data OnDemand =
-  OnDemand {_odEnv :: Env
-           ,_odInstance :: Instance}
+data Instance =
+  Instance {_inEnv :: Env
+           ,_inInstance :: EC2.Instance}
   deriving (Eq)
 
 data Reserved =
   Reserved {_reEnv :: Env
-           ,_reReserved :: ReservedInstances
+           ,_reReserved :: EC2.ReservedInstances
            ,_reInstances :: [Instance]
            ,_reNewInstances :: [Instance]}
   deriving (Eq)
@@ -99,7 +100,7 @@ data Combine =
   deriving (Eq)
 
 data Model =
-  Model {_onDemand :: [OnDemand]
+  Model {_instances :: [Instance]
         ,_reserved :: [Reserved]
         ,_combined :: [Combine]}
   deriving (Eq)
@@ -152,7 +153,7 @@ $(makeLenses ''Account)
 $(makeLenses ''Combine)
 $(makeLenses ''Config)
 $(makeLenses ''Model)
-$(makeLenses ''OnDemand)
+$(makeLenses ''Instance)
 $(makeLenses ''Options)
 $(makeLenses ''Reserved)
 
