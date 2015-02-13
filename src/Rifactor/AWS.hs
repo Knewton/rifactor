@@ -1,6 +1,8 @@
+{-# LANGUAGE ExtendedDefaultRules #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RankNTypes #-}
 
 -- Module      : Rifactor.AWS
 -- Copyright   : (c) 2015 Knewton, Inc <se@knewton.com>
@@ -12,49 +14,47 @@
 
 module Rifactor.AWS where
 
-import           BasePrelude hiding (getEnv)
+import           BasePrelude
 import           Control.Lens
-import           Control.Monad.IO.Class ()
-import           Control.Monad.Trans.AWS hiding (accessKey, secretKey)
+import qualified Control.Monad.Trans.AWS as AWS
+import           Control.Monad.Trans.AWS hiding (Env)
 import qualified Data.ByteString.Char8 as B
+import           Data.Text (Text)
 import qualified Data.Text as T
+import qualified Data.Text.Encoding as T
 import           Network.AWS.Data (toText)
 import qualified Network.AWS.EC2 as EC2
 import           Network.AWS.EC2 hiding (Instance)
 import           Rifactor.Types
 
--- | We sometimes need a set of empty keys in a prepackaged Env so
--- that we can use the AWS transformer.  runAWST takes an Env and
--- there's no alternative except real environments at the moment.  So
--- we'll just hand it an Env with empty keys.  That way we can use the
--- AWS monad without fear of it doing things to our account(s).
-noKeysEnv :: IO Env
-noKeysEnv =
-  getEnv NorthVirginia
-         (FromKeys (AccessKey B.empty)
-                   (SecretKey B.empty))
+default (Text)
 
--- | Given our Config (was JSON), and a AWS Logger, create all the Env
--- records we need (1 for each region/account combo).  This is so we
--- can cycle through them when aggergating data on AWS EC2.
-initEnvs :: Config -> Logger -> IO [Env]
+noKeysEnv :: IO AwsEnv
+noKeysEnv =
+  Env <$>
+  AWS.getEnv
+    AWS.NorthVirginia
+    (AWS.FromKeys (AWS.AccessKey B.empty)
+                  (AWS.SecretKey B.empty)) <*>
+  pure "noop"
+
+initEnvs :: Config -> AWS.Logger -> IO [AwsEnv]
 initEnvs cfg lgr =
   for [(a,r) | r <- cfg ^. regions
              , a <- cfg ^. accounts]
-      (\(Account _name key secret,r) ->
-         (getEnv r
-                 (FromKeys (AccessKey (B.pack key))
-                           (SecretKey (B.pack secret))) <&>
-          (envLogger .~ lgr)))
+      (\(Account n k s,r) ->
+         Env <$>
+         (AWS.getEnv
+            r
+            (AWS.FromKeys (AWS.AccessKey (T.encodeUtf8 k))
+                          (AWS.SecretKey (T.encodeUtf8 s))) <&>
+          (AWS.envLogger .~ lgr)) <*>
+         pure n)
 
--- | Query for pending ReservedInstancesModifications.  We care about
--- this because we don't want to do anything else until these are no
--- longer pending.  If we do have a pending, just blow out with an
--- error & stops the AWS monad from doing anything further.
-checkPendingModifications :: [Env] -> AWS ()
+checkPendingModifications :: [AwsEnv] -> AWS ()
 checkPendingModifications =
   traverse_ (\e ->
-               runAWST e
+               runAWST (e ^. env)
                        (do rims <-
                              view drimrReservedInstancesModifications <$>
                              send (describeReservedInstancesModifications &
@@ -66,117 +66,320 @@ checkPendingModifications =
                               then pure ()
                               else error "There are pending RI modifications."))
 
--- | Fetch all the Model data we need from Amazon via their APIs.
-fetchFromAmazon :: [Env] -> AWS Model
+fetchFromAmazon :: [AwsEnv] -> AWS AwsModel
 fetchFromAmazon es =
-  Model <$> fetchInstances es <*> fetchReservedInstances es <*> pure []
+  Model <$> fetchInstances es <*> fetchReserved es <*>
+  pure [] <*>
+  pure [] <*>
+  pure [] <*>
+  pure []
 
--- | Fetch all the ReservedInstances records we can from all Env (all
--- accounts/regions). Return a consolidated list of Reserved records
--- (1 per EC2 ReservedInstances).
-fetchReservedInstances :: [Env] -> AWS [Reserved]
-fetchReservedInstances =
-  liftA concat .
-  traverse (\e ->
-              do xs <-
-                   hoistEither =<<
-                   runAWST e
-                           (view drirReservedInstances <$>
-                            send (describeReservedInstances & driFilters .~
-                                  [filter' "state" &
-                                   fValues .~
-                                   [toText RISActive]]))
-                 pure (map (\r -> Reserved e r [] []) xs))
-
--- | Fetch all the Instance records we can from all AWS Env (all
--- accounts/regions). Return a consolidated list of OnDemand records
--- (1 per EC2 Instances).
-fetchInstances :: [Env] -> AWS [Instance]
+fetchInstances :: [AwsEnv] -> AWS [AwsInstance]
 fetchInstances =
   liftA concat .
   traverse (\e ->
-              do xs <-
-                   hoistEither =<<
-                   runAWST e
-                           (view dirReservations <$>
-                            send (describeInstances & di1Filters .~
-                                  [filter' "instance-state-name" &
-                                   fValues .~
-                                   [toText ISNRunning]]))
-                 pure (map (Instance e) (concatMap (view rInstances) xs)))
+              runAWST (e ^. env)
+                      (view dirReservations <$>
+                       send (describeInstances & di1Filters .~
+                             [filter' "instance-state-name" &
+                              fValues .~
+                              [toText ISNRunning]])) >>=
+              hoistEither >>=
+              pure .
+              map (Instance e) .
+              concatMap (view rInstances))
 
-instanceClass :: InstanceType -> (InstanceGroup,Float)
-instanceClass C1_Medium = (C1,sizeFactor Medium)
-instanceClass C1_XLarge = (C1,sizeFactor XLarge)
-instanceClass C3_2XLarge = (C3,sizeFactor XLarge2X)
-instanceClass C3_4XLarge = (C3,sizeFactor XLarge4X)
-instanceClass C3_8XLarge = (C3,sizeFactor XLarge8X)
-instanceClass C3_Large = (C3,sizeFactor Large)
-instanceClass C3_XLarge = (C3,sizeFactor XLarge)
-instanceClass C4_2XLarge = (C4,sizeFactor XLarge2X)
-instanceClass C4_4XLarge = (C4,sizeFactor XLarge4X)
-instanceClass C4_8XLarge = (C4,sizeFactor XLarge8X)
-instanceClass C4_Large = (C4,sizeFactor Large)
-instanceClass C4_XLarge = (C4,sizeFactor XLarge)
-instanceClass CC1_4XLarge = (CC1,sizeFactor XLarge4X)
-instanceClass CC2_8XLarge = (CC2,sizeFactor XLarge8X)
-instanceClass CG1_4XLarge = (CG1,sizeFactor XLarge4X)
-instanceClass CR1_8XLarge = (CR1,sizeFactor XLarge8X)
-instanceClass G2_2XLarge = (G2,sizeFactor XLarge2X)
-instanceClass HI1_4XLarge = (HI1,sizeFactor XLarge4X)
-instanceClass HS1_8XLarge = (HS1,sizeFactor XLarge8X)
-instanceClass I2_2XLarge = (I2,sizeFactor XLarge2X)
-instanceClass I2_4XLarge = (I2,sizeFactor XLarge4X)
-instanceClass I2_8XLarge = (I2,sizeFactor XLarge8X)
-instanceClass I2_XLarge = (I2,sizeFactor XLarge)
-instanceClass M1_Large = (M1,sizeFactor Large)
-instanceClass M1_Medium = (M1,sizeFactor Medium)
-instanceClass M1_Small = (M1,sizeFactor Small)
-instanceClass M1_XLarge = (M1,sizeFactor XLarge)
-instanceClass M2_2XLarge = (M2,sizeFactor XLarge2X)
-instanceClass M2_4XLarge = (M2,sizeFactor XLarge4X)
-instanceClass M2_XLarge = (M2,sizeFactor XLarge)
-instanceClass M3_2XLarge = (M3,sizeFactor XLarge2X)
-instanceClass M3_Large = (M3,sizeFactor Large)
-instanceClass M3_Medium = (M3,sizeFactor Medium)
-instanceClass M3_XLarge = (M3,sizeFactor XLarge)
-instanceClass R3_2XLarge = (R3,sizeFactor XLarge2X)
-instanceClass R3_4XLarge = (R3,sizeFactor XLarge4X)
-instanceClass R3_8XLarge = (R3,sizeFactor XLarge8X)
-instanceClass R3_Large = (R3,sizeFactor Large)
-instanceClass R3_XLarge = (R3,sizeFactor XLarge)
-instanceClass T1_Micro = (T1,sizeFactor Micro)
-instanceClass T2_Medium = (T2,sizeFactor Medium)
-instanceClass T2_Micro = (T2,sizeFactor Micro)
-instanceClass T2_Small = (T2,sizeFactor Small)
+fetchReserved :: [AwsEnv] -> AWS [AwsReserved]
+fetchReserved =
+  liftA concat .
+  traverse (\e ->
+              runAWST (e ^. env)
+                      (view drirReservedInstances <$>
+                       send (describeReservedInstances & driFilters .~
+                             [filter' "state" &
+                              fValues .~
+                              [toText RISActive]])) >>=
+              hoistEither >>=
+              pure .
+              map (\r -> Reserved e r))
 
-sizeFactor :: InstanceSize -> Float
-sizeFactor Micro    = 0.5
-sizeFactor Small    = 1
-sizeFactor Medium   = 2
-sizeFactor Large    = 4
-sizeFactor XLarge   = 8
-sizeFactor XLarge2X = 16
-sizeFactor XLarge4X = 32
-sizeFactor XLarge8X = 64
+find1ByType :: EC2.InstanceType -> IType
+find1ByType t =
+  head (filter ((==) t . view insType) instanceTypes)
 
-comparingReservedInstancesTypeAndLocation :: EC2.ReservedInstances -> EC2.ReservedInstances -> Ordering
-comparingReservedInstancesTypeAndLocation a b =
-  comparing (view ri1InstanceType) a b <>
-  comparing (view ri1AvailabilityZone) a b
+findByGroup :: IGroup -> [IType]
+findByGroup g =
+  filter ((==) g . view insGroup) instanceTypes
 
-matchingReservedInstancesTypeAndLocation :: EC2.ReservedInstances -> EC2.ReservedInstances -> Bool
-matchingReservedInstancesTypeAndLocation a b =
-  (a ^. ri1InstanceType == b ^. ri1InstanceType) &&
-  (a ^. ri1AvailabilityZone == b ^. ri1AvailabilityZone)
+findByFactor :: IGroup -> Float -> [IType]
+findByFactor g f =
+  filter (\i -> i ^. insGroup == g && i ^. insFactor == f) instanceTypes
 
-comparingInstanceTypeAndLocation :: EC2.Instance -> EC2.Instance -> Ordering
-comparingInstanceTypeAndLocation a b =
-  comparing (view i1InstanceType) a b <>
-  comparing (view pAvailabilityZone . view i1Placement) a b
+instanceTypes :: [IType]
+instanceTypes =
+  [IType C1 C1_Medium (normFactor Medium)
+  ,IType C1 C1_XLarge (normFactor XLarge)
+  ,IType C3 C3_2XLarge (normFactor XLarge2X)
+  ,IType C3 C3_4XLarge (normFactor XLarge4X)
+  ,IType C3 C3_8XLarge (normFactor XLarge8X)
+  ,IType C3 C3_Large (normFactor Large)
+  ,IType C3 C3_XLarge (normFactor XLarge)
+  ,IType C4 C4_2XLarge (normFactor XLarge2X)
+  ,IType C4 C4_4XLarge (normFactor XLarge4X)
+  ,IType C4 C4_8XLarge (normFactor XLarge8X)
+  ,IType C4 C4_Large (normFactor Large)
+  ,IType C4 C4_XLarge (normFactor XLarge)
+  ,IType CC1 CC1_4XLarge (normFactor XLarge4X)
+  ,IType CC2 CC2_8XLarge (normFactor XLarge8X)
+  ,IType CG1 CG1_4XLarge (normFactor XLarge4X)
+  ,IType CR1 CR1_8XLarge (normFactor XLarge8X)
+  ,IType G2 G2_2XLarge (normFactor XLarge2X)
+  ,IType HI1 HI1_4XLarge (normFactor XLarge4X)
+  ,IType HS1 HS1_8XLarge (normFactor XLarge8X)
+  ,IType I2 I2_2XLarge (normFactor XLarge2X)
+  ,IType I2 I2_4XLarge (normFactor XLarge4X)
+  ,IType I2 I2_8XLarge (normFactor XLarge8X)
+  ,IType I2 I2_XLarge (normFactor XLarge)
+  ,IType M1 M1_Large (normFactor Large)
+  ,IType M1 M1_Medium (normFactor Medium)
+  ,IType M1 M1_Small (normFactor Small)
+  ,IType M1 M1_XLarge (normFactor XLarge)
+  ,IType M2 M2_2XLarge (normFactor XLarge2X)
+  ,IType M2 M2_4XLarge (normFactor XLarge4X)
+  ,IType M2 M2_XLarge (normFactor XLarge)
+  ,IType M3 M3_2XLarge (normFactor XLarge2X)
+  ,IType M3 M3_Large (normFactor Large)
+  ,IType M3 M3_Medium (normFactor Medium)
+  ,IType M3 M3_XLarge (normFactor XLarge)
+  ,IType R3 R3_2XLarge (normFactor XLarge2X)
+  ,IType R3 R3_4XLarge (normFactor XLarge4X)
+  ,IType R3 R3_8XLarge (normFactor XLarge8X)
+  ,IType R3 R3_Large (normFactor Large)
+  ,IType R3 R3_XLarge (normFactor XLarge)
+  ,IType T1 T1_Micro (normFactor Micro)
+  ,IType T2 T2_Medium (normFactor Medium)
+  ,IType T2 T2_Micro (normFactor Micro)
+  ,IType T2 T2_Small (normFactor Small)]
 
-matchingInstanceTypeAndLocation :: EC2.Instance -> EC2.Instance -> Bool
-matchingInstanceTypeAndLocation a b =
-  (a ^. i1InstanceType == b ^. i1InstanceType) &&
-  (a ^. i1Placement ^. pAvailabilityZone == b ^. i1Placement ^.
-                                             pAvailabilityZone)
+normFactor :: ISize -> Float
+normFactor Micro    = 0.5
+normFactor Small    = 1
+normFactor Medium   = 2
+normFactor Large    = 4
+normFactor XLarge   = 8
+normFactor XLarge2X = 16
+normFactor XLarge4X = 32
+normFactor XLarge8X = 64
+
+instance Combineable AwsReserved AwsReserved where
+  combineable a b =
+    -- same end date
+    (a ^. resResv ^. ri1End == b ^. resResv ^. ri1End) &&
+    -- same instance type group (C1, M3, etc)
+    (find1ByType (a ^. resResv ^. ri1InstanceType ^?! _Just) ^.
+     insGroup ==
+     find1ByType (b ^. resResv ^. ri1InstanceType ^?! _Just) ^.
+     insGroup) &&
+    -- same offering type
+    (a ^. resResv ^. ri1OfferingType == b ^. resResv ^. ri1OfferingType) &&
+    -- same region
+    (a ^. resEnv ^. env ^. envRegion == b ^. resEnv ^. env ^. envRegion)
+
+instance Combineable AwsCombineReserved AwsReserved where
+  combineable a b =
+    all (combineable b)
+        (a ^. combine ^.. traverse)
+
+instance Mergeable AwsReserved AwsInstance (Maybe AwsUsedReserved) where
+  merge a b =
+    if matchable a b
+       then Just (Used a [b])
+       else Nothing
+
+instance Mergeable AwsUsedReserved AwsInstance (Maybe AwsUsedReserved) where
+  merge a b =
+    if matchable a b
+       then Just (a & usedBy %~ (|> b))
+       else Nothing
+
+instance Mergeable AwsReserved AwsInstance (Maybe AwsSplitReserved) where
+  merge a b =
+    if splittable a b
+       then Just (Split a [b])
+       else Nothing
+
+instance Mergeable AwsSplitReserved AwsInstance (Maybe AwsSplitReserved) where
+  merge a b =
+    if splittable a b
+       then Just (a & splitBy %~ (|> b))
+       else Nothing
+
+instance Mergeable AwsUsedReserved AwsInstance (Maybe AwsSplitUsedReserved) where
+  merge a b =
+    if splittable a b
+       then Just (Split a [b])
+       else Nothing
+
+instance Mergeable AwsSplitUsedReserved AwsInstance (Maybe AwsSplitUsedReserved) where
+  merge a b =
+    if splittable a b
+       then Just (a & splitBy %~ (|> b))
+       else Nothing
+
+instance Mergeable AwsReserved AwsReserved (Maybe AwsCombineReserved) where
+  merge a b =
+    if combineable a b
+       then Just (Combine [a,b])
+       else Nothing
+
+instance Mergeable AwsCombineReserved AwsReserved (Maybe AwsCombineReserved) where
+  merge a b =
+    if combineable a b
+       then Just (a & combine %~ (|> b))
+       else Nothing
+
+instance Splittable AwsReserved AwsInstance where
+  splittable r i =
+    splittable (Split r [] :: AwsSplitReserved)
+               i
+
+instance Splittable AwsUsedReserved AwsInstance where
+  splittable r i =
+    splittable (Split r [] :: AwsSplitUsedReserved)
+               i
+
+instance Splittable AwsSplitReserved AwsInstance where
+  splittable r i =
+    -- windows goes with windows
+    (((r ^. split ^. resResv ^. ri1ProductDescription) `elem`
+      [Just RIPDWindows,Just RIPDWindowsAmazonVPC]) ==
+     ((i ^. insInst ^. i1Platform) ==
+      Just Windows)) &&
+    -- vpc goes with vpc
+    (((r ^. split ^. resResv ^. ri1ProductDescription) `elem`
+      [Just RIPDLinuxUNIXAmazonVPC,Just RIPDWindowsAmazonVPC]) ==
+     isJust (i ^. insInst ^. i1VpcId)) &&
+    -- same region
+    (r ^. split ^. resEnv ^. env ^. envRegion) ==
+    (i ^. insEnv ^. env ^. envRegion) &&
+    -- and also would fit into this split arrangement
+    let iGroup =
+          find1ByType (i ^. insInst ^. i1InstanceType) ^. insGroup
+        rGroup =
+          fmap (view insGroup . find1ByType)
+               (r ^. split ^. resResv ^. ri1InstanceType)
+-- FIXME capacityTotal or Used is broken
+        Just avail =
+          liftA2 (-)
+                 (capacityTotal r)
+                 (capacityUsed r)
+        factor =
+          find1ByType (i ^. insInst ^. i1InstanceType) ^. insFactor
+    in (Just iGroup == rGroup) &&
+       factor <= avail
+       -- case fmap (factor <=) avail of
+       --   Nothing -> False
+       --   Just _ -> True
+
+instance Splittable AwsSplitUsedReserved AwsInstance where
+  splittable r i =
+    -- windows goes with windows
+    (((r ^. split ^. used ^. resResv ^. ri1ProductDescription) `elem`
+      [Just RIPDWindows,Just RIPDWindowsAmazonVPC]) ==
+     ((i ^. insInst ^. i1Platform) ==
+      Just Windows)) &&
+    -- vpc goes with vpc
+    (((r ^. split ^. used ^. resResv ^. ri1ProductDescription) `elem`
+      [Just RIPDLinuxUNIXAmazonVPC,Just RIPDWindowsAmazonVPC]) ==
+     isJust (i ^. insInst ^. i1VpcId)) &&
+    -- same region
+    (r ^. split ^. used ^. resEnv ^. env ^. envRegion) ==
+    (i ^. insEnv ^. env ^. envRegion) &&
+    -- and also would fit into this split arrangement
+    let iGroup =
+          find1ByType (i ^. insInst ^. i1InstanceType) ^.
+          insGroup
+        rGroup =
+          fmap (view insGroup . find1ByType)
+               (r ^. split ^. used ^. resResv ^. ri1InstanceType)
+        avail =
+          liftA2 (-)
+                 (capacityTotal r)
+                 (capacityUsed r)
+        factor =
+          find1ByType (i ^. insInst ^. i1InstanceType) ^.
+          insFactor
+    in (Just iGroup ==
+        rGroup) &&
+       case fmap (factor <=) avail of
+         Nothing -> False
+         Just _ -> True
+
+instance Matchable AwsReserved AwsInstance where
+  matchable r i =
+    -- windows goes with windows
+    (((r ^. resResv ^. ri1ProductDescription) `elem`
+      [Just RIPDWindows,Just RIPDWindowsAmazonVPC]) ==
+     ((i ^. insInst ^. i1Platform) ==
+      Just Windows)) &&
+    -- vpc goes with vpc
+    (((r ^. resResv ^. ri1ProductDescription) `elem`
+      [Just RIPDLinuxUNIXAmazonVPC,Just RIPDWindowsAmazonVPC]) ==
+     isJust (i ^. insInst ^. i1VpcId)) &&
+    -- same instance type
+    (r ^. resResv ^. ri1InstanceType) ==
+    (i ^. insInst ^? i1InstanceType) &&
+    -- same availability zone
+    (r ^. resResv ^. ri1AvailabilityZone) ==
+    (i ^. insInst ^. i1Placement ^. pAvailabilityZone)
+
+instance Matchable AwsUsedReserved AwsInstance where
+  matchable r i =
+    -- fits the regular criteria
+    matchable (r ^. used)
+              i &&
+    -- and also would fit this used reserved
+    fmap (length (r ^. usedBy) <)
+         (r ^. used ^. resResv ^. ri1InstanceCount) ==
+    Just True
+
+instance Capacity AwsReserved where
+  capacityUsed _ = Nothing
+  capacityTotal r =
+    let count =
+          fmap realToFrac (r ^. resResv ^. ri1InstanceCount)
+        norm =
+          fmap (view insFactor . find1ByType)
+               (r ^. resResv ^. ri1InstanceType)
+    in liftA2 (*) count norm
+
+instance Capacity AwsUsedReserved where
+  capacityUsed u =
+    fmap ((*) (realToFrac (length (u ^. usedBy))) .
+          view insFactor)
+         (fmap find1ByType (u ^. used ^. resResv ^. ri1InstanceType))
+  capacityTotal u = capacityTotal (u ^. used)
+
+instance Capacity AwsSplitReserved where
+  capacityUsed s =
+    let new =
+          foldl (\a i ->
+                   a +
+                   (find1ByType (i ^. insInst ^. i1InstanceType) ^.
+                    insFactor))
+                (0 :: Float)
+                (s ^. splitBy)
+    in fmap (new +) (capacityUsed (s ^. split))
+  capacityTotal s = capacityTotal (s ^. split)
+
+instance Capacity AwsSplitUsedReserved where
+  capacityUsed s =
+    let new =
+          foldl (\a i ->
+                   a +
+                   (find1ByType (i ^. insInst ^. i1InstanceType) ^.
+                    insFactor))
+                (0 :: Float)
+                (s ^. splitBy)
+    in fmap (new +) (capacityUsed (s ^. split))
+  capacityTotal s = capacityTotal (s ^. split)

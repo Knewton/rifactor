@@ -1,10 +1,11 @@
+{-# LANGUAGE ExtendedDefaultRules #-}
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE TypeSynonymInstances #-}
 
 -- Module      : Rifactor.Summary
 -- Copyright   : (c) 2015 Knewton, Inc <se@knewton.com>
@@ -16,93 +17,100 @@
 
 module Rifactor.Summary where
 
-import           BasePrelude
-import           Control.Lens
-import           Data.Text (Text)
-import qualified Data.Text as T
-import           Network.AWS.Data (toText)
-import qualified Network.AWS.EC2 as EC2
-import           Network.AWS.EC2 hiding (Instance,Region)
-import           Rifactor.Capacity
-import           Rifactor.Types
+-- import           BasePrelude
+-- import           Control.Lens
+-- import           Data.Text (Text)
+-- import qualified Data.Text as T
+-- import           Network.AWS.Data (toText)
+-- import           Network.AWS.EC2 hiding (Instance)
+-- import qualified Network.AWS.EC2 as EC2
+-- import           Rifactor.Capacity
+-- import           Rifactor.Types
 
-{- Classes/Instances -}
+-- default (Text)
 
--- | This partial function will intersperse commas through any list of
--- Text given it.
-sep :: [Text] -> Text
-sep = T.intercalate (T.pack " | ")
+-- {- Classes/Instances -}
 
--- | This class is for summarizing things to print to the console (or
--- a report).  It's pretty simple & straightforward. It only has
--- limited features.
-class Summarizable a where
-  summary :: a -> Text
+-- -- | This partial function will intersperse commas through any list of
+-- -- Text given it.
+-- sep :: [Text] -> Text
+-- sep = T.intercalate (" - ")
 
--- | A summary of a Model as a whole.
-instance Summarizable Model where
-  summary (Model rs od cs) =
-    "Model " <>
-    sep (map summary rs) <>
-    " | " <>
-    sep (map summary od) <>
-    " | " <>
-    sep (map summary cs)
+-- -- | This class is for summarizing things to print to the console (or
+-- -- a report).  It's pretty simple & straightforward. It only has
+-- -- limited features.
+-- class Summarizable a where
+--   summary :: a -> Text
 
--- | A summary of a Reserved recard (many different).
-instance Summarizable Reserved where
-  summary r@(Reserved _ ri is nis) =
-    "Reserved " <>
-    (summary ri) <>
-    (case capacity r of
-       Nothing -> T.empty
-       Just (total,used) ->
-         " capacity " <>
-         T.pack (show used) <>
-         " of " <>
-         T.pack (show total) <>
-         " total") <>
-    (if length is > 0
-        then " used by " <>
-             (T.pack $ show $ length is) <>
-             " [" <>
-             sep (map summary is) <>
-             "]"
-        else "") <>
-    (if length nis > 0
-        then " plans call for " <>
-             (T.pack $ show $ length nis) <>
-             " more [" <>
-             sep (map summary nis) <>
-             "]"
-        else "")
+-- -- | A summary of a Model as a whole.
+-- instance Summarizable Model where
+--   summary (Model rs od cs) =
+--     "Model " <>
+--     sep (map summary rs) <>
+--     " - " <>
+--     sep (map summary od) <>
+--     " - " <>
+--     sep (map summary cs)
 
-instance Summarizable Combine where
-  summary (Combine rs) =
-    "Combine [" <>
-    sep (map summary rs) <>
-    "]"
+-- -- | A summary of a Reserved recard (many different).
+-- instance Summarizable Reserved where
+--   summary r@(Reserved a _ ri is nis) =
+--     "Reserved (" <> a <> ") " <>
+--     (summary ri) <>
+--     (if length is > 0
+--         then " applicable " <>
+--              (fromString . show $ length is) <>
+--              " [" <>
+--              sep (map summary is) <>
+--              "]"
+--         else "") <>
+--     (if length nis > 0
+--         then " additional [" <>
+--              sep (map summary nis) <>
+--              "]"
+--         else "")
+--     -- (case capacity r of
+--     --    Nothing -> T.empty
+--     --    Just (total,used) ->
+--     --      " capacity " <>
+--     --      (fromString . show $ used) <>
+--     --      " of " <>
+--     --      (fromString . show $ total) <>
+--     --      " total")
 
--- | A summary of a Instance recard.
-instance Summarizable Instance where
-  summary (Instance _ i) = summary i
+-- -- | A summary of a Instance recard.
+-- instance Summarizable Instance where
+--   summary (Instance a _ i) = "Instance (" <> a <> ") " <> summary i
 
--- | A summary of a ReservedInstances recard.
-instance Summarizable EC2.ReservedInstances where
-  summary x =
-    fromMaybe T.empty (x ^. ri1ReservedInstancesId) <>
-    "|" <>
-    toText (fromMaybe 0 (x ^. ri1InstanceCount)) <>
-    "|" <>
-    maybe T.empty toText (x ^. ri1InstanceType) <>
-    "|" <>
-    fromMaybe T.empty (x ^. ri1AvailabilityZone)
+-- instance Summarizable Combine where
+--   summary (Combine rs) =
+--     "Combine [" <>
+--     sep (map summary rs) <>
+--     "]"
 
--- | A summary of a Instance recard.
-instance Summarizable EC2.Instance where
-  summary x =
-    (x ^. i1InstanceId) <>
-    "|" <>
-    toText (x ^. i1InstanceType) <>
-    "|" <>
-    maybe T.empty toText (x ^. i1Placement ^. pAvailabilityZone)
+-- -- | A summary of a ReservedInstances recard.
+-- instance Summarizable EC2.ReservedInstances where
+--   summary x =
+--     fromMaybe T.empty (x ^. ri1ReservedInstancesId) <>
+--     "|" <>
+--     toText (fromMaybe 0 (x ^. ri1InstanceCount)) <>
+--     "|" <>
+--     maybe T.empty toText (x ^. ri1InstanceType) <>
+--     "|" <>
+--     fromMaybe T.empty (x ^. ri1AvailabilityZone) <>
+--     "|" <>
+--     (if ((x ^. ri1ProductDescription) `elem`
+--          [Just RIPDWindows,Just RIPDWindowsAmazonVPC])
+--      then "vpc"
+--      else "classic")
+
+-- -- | A summary of a Instance recard.
+-- instance Summarizable EC2.Instance where
+--   summary x =
+--     (x ^. i1InstanceId) <>
+--     "|" <>
+--     toText (x ^. i1InstanceType) <>
+--     "|" <>
+--     maybe T.empty toText (x ^. i1Placement ^. pAvailabilityZone) <>
+--     "|" <>
+--     maybe "classic" (\_ -> "vpc") (x ^. i1VpcId)

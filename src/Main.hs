@@ -1,17 +1,10 @@
-{-# LANGUAGE ConstraintKinds #-}
-{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE GADTs #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE TypeFamilies #-}
 
--- Module      : Rifactor.Plan
+-- Module      : Main
 -- Copyright   : (c) 2015 Knewton, Inc <se@knewton.com>
 --               (c) 2015 Tim Dysinger <tim@dysinger.net> (contributor)
 -- License     : Apache 2.0 http://opensource.org/licenses/Apache-2.0
@@ -20,13 +13,12 @@
 -- Portability : non-portable (GHC extensions)
 
 import BasePrelude
-import Control.Monad.IO.Class ()
 import Data.Time
 import Distribution.PackageDescription.TH
 import Git.Embed
 import Language.Haskell.TH
 import Options.Applicative
-import Rifactor.Plan
+import Rifactor.Execute
 import Rifactor.Types
 
 version :: String

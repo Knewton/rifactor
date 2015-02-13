@@ -1,5 +1,7 @@
-.cabal-sandbox
-.idea
-bower_components
-cabal.sandbox.config
-dist
+*.swp
+/.cabal-sandbox/
+/.idea/
+/bower_components/
+/cabal.sandbox.config
+/dist/
+/out/
