@@ -46,7 +46,7 @@
        2. Reserved Instances (unmatched)
        3. Used Reserved Instances (partial or full)
 
-  2. RIFactor will then match unmatched Reserved Instances together.
+  2. RIFactor will then combine empty Reserved Instances together.
 
      - Model Input
        1. Reserved Instances
