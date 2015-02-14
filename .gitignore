@@ -1,7 +1,9 @@
 *.swp
+*~
 /.cabal-sandbox/
 /.idea/
-/bower_components/
+/README.md
 /cabal.sandbox.config
+/dist
 /dist/
 /out/
