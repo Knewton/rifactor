@@ -20,7 +20,7 @@
 
   [[./docs/reality.png]]
 
-  Over time, as you terminate & re-launch nodes, your Reserved
+  Over time, as you terminate & re-launch Instances, your Reserved
   Instances may no longer match your running Instances.  We'll need to
   reconfigure your Reserved Instances so they match your new
   configuration so you aren't paying double.
@@ -69,7 +69,7 @@
        4. Split Reserved Instances (partial or full)
        5. Split Used Reserved Instances (partial or full)
 
-  Once RIFactor has probed Amazon for data & ran the model through
+  Once RIFactor has probed Amazon for data & ran the Model through
   these transformations, it can show you the plan and execute on it.
 
   NOTE: The purpose of combining Reserved Instances back together
@@ -101,7 +101,7 @@
   attempt to do before actually running it without.*
 
   In all cases you should monitor your account(s) to make sure your
-  reserved instances match your running instances during our alpha &
+  Reserved Instances match your running instances during our alpha &
   beta periods.
 
 *** [[http://place-where-we-download.com][Docker Image]]
@@ -133,7 +133,7 @@
 
     Create a new IAM User on each of your AWS accounts.  This user
     account will be used to access your amazon account & modify
-    reserved instances.
+    Reserved Instances.
 
     Save the credentials (access key & secret key) given to you when
     you create the new user.  The name of the IAM User does not
