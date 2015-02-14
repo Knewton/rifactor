@@ -1,6 +1,7 @@
-{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE DeriveFoldable #-}
+{-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE NoImplicitPrelude #-}
-{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TemplateHaskell #-}
 
 -- Module      : Rifactor.Types.Model
@@ -22,97 +23,35 @@ import Rifactor.Types.Internal (deriveOptions)
 data Env a =
   Env {_env :: a
       ,_envName :: Text}
-  deriving (Eq, Show)
+  deriving (Eq,Foldable,Functor,Show,Traversable)
 
-data Instance a b =
-  Instance {_insEnv :: Env a
-           ,_insInst :: b}
-  deriving (Eq, Show)
+$(makeLenses ''Env)
 
-data Reserved a b =
-  Reserved {_resEnv :: Env a
-           ,_resResv :: b}
-  deriving (Eq, Show)
+data Resource e r i
+  = Reserved {_resEnv :: Env e
+             ,_resource :: r}
+  | Instance {_resEnv :: Env e
+             ,_instance :: i}
+  deriving (Eq,Foldable,Functor,Show,Traversable)
 
-data Used a b =
-  Used {_used :: a
-       ,_usedBy :: [b]}
-  deriving (Eq, Show)
+$(makeLenses ''Resource)
 
-data Split a b =
-  Split {_split :: a
-        ,_splitBy :: [b]}
-  deriving (Eq, Show)
+data Model a
+  = Empty
+  | Item {_item :: a}
+  | Used {_used :: Model a
+         ,_by :: [Model a]}
+  | Merge {_merged :: [Model a]}
+  | Split {_split :: Model a
+          ,_by :: [Model a]}
+  | Full {_full :: Model a}
+  | Model {_model :: [Model a]}
+  deriving (Eq,Foldable,Functor,Show,Traversable)
 
-data Combine a =
-  Combine {_combine :: [a]}
-  deriving (Eq, Show)
-
-type UsedReserved e r i = Used (Reserved e r) (Instance e i)
-type SplitReserved e r i = Split (Reserved e r) (Instance e i)
-type SplitUsedReserved e r i = Split (UsedReserved e r i) (Instance e i)
-type CombineReserved e r = Combine (Reserved e r)
-
-data Model e r i =
-  Model {_insts :: [Instance e i]
-        ,_resvs :: [Reserved e r]
-        ,_usedResvs :: [UsedReserved e r i]
-        ,_splitResvs :: [SplitReserved e r i]
-        ,_splitUsedResvs :: [SplitUsedReserved e r i]
-        ,_combineResvs :: [CombineReserved e r]}
+$(makeLenses ''Model)
 
 type Transition a = a -> a
 
-class Matchable a b where
-  matchable :: a -> b -> Bool
-
-class Combineable a b where
-  combineable :: a -> b -> Bool
-
-class Splittable a b where
-  splittable :: a -> b -> Bool
-
-class Mergeable a b c where
-  merge :: a -> b -> c
-
-class Capacity a where
-  capacityUsed :: a -> Maybe Float
-  capacityTotal :: a -> Maybe Float
-
-{- LENS -}
-
-$(makeLenses ''Combine)
-$(makeLenses ''Env)
-$(makeLenses ''Instance)
-$(makeLenses ''Model)
-$(makeLenses ''Reserved)
-$(makeLenses ''Split)
-$(makeLenses ''Used)
-
-{- JSON -}
-
-$(deriveToJSON deriveOptions ''Combine)
 $(deriveToJSON deriveOptions ''Env)
-$(deriveToJSON deriveOptions ''Instance)
+$(deriveToJSON deriveOptions ''Resource)
 $(deriveToJSON deriveOptions ''Model)
-$(deriveToJSON deriveOptions ''Reserved)
-$(deriveToJSON deriveOptions ''Split)
-$(deriveToJSON deriveOptions ''Used)
-
-{- Instances -}
-
-instance Foldable (Instance a) where
-  foldr f y x@Instance{..} = f (x ^. insInst) y
-
-instance Foldable (Reserved a) where
-  foldr f y x@Reserved{..} = f (x ^. resResv) y
-
-instance Foldable (Used a) where
-  -- TODO how to fold into _used also?
-  foldr f y x@Used{..} = foldr f y (x ^. usedBy)
-
-instance Foldable (Split a) where
-  foldr f y x@Split{..} = foldr f y (x ^. splitBy)
-
-instance Foldable Combine where
-  foldr f y x@Combine{..} = foldr f y (x ^. combine)

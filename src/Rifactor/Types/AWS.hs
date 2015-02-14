@@ -1,5 +1,4 @@
 {-# LANGUAGE ExtendedDefaultRules #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TemplateHaskell #-}
@@ -16,36 +15,24 @@ module Rifactor.Types.AWS where
 
 import           BasePrelude
 import           Control.Lens hiding ((.=))
-import           Data.Aeson ((.=), ToJSON, object, toJSON)
+import qualified Control.Monad.Trans.AWS as AWS
+import           Control.Monad.Trans.AWS hiding (Env)
+import           Data.Aeson (ToJSON, toJSON, object, (.=))
 import           Data.Aeson.TH (deriveToJSON)
 import           Data.Text (Text)
 import qualified Data.Text as T
-import           Network.AWS hiding (Env)
-import qualified Network.AWS as AWS (Env)
-import qualified Network.AWS.Data as AWS (toText)
-import           Network.AWS.EC2 hiding (Region,Instance)
-import qualified Network.AWS.EC2 as EC2 (Instance)
-import           Rifactor.Types.Internal
+import qualified Network.AWS.Data as AWS
+import qualified Network.AWS.EC2 as EC2
+import           Network.AWS.EC2 hiding (Instance,Region)
+import           Rifactor.Types.Internal (deriveOptions)
 import           Rifactor.Types.Model
 
 default (Text)
 
-type AwsModel = Model AWS.Env ReservedInstances EC2.Instance
-type AwsModelTransition = Transition AwsModel
-
 type AwsEnv = Env AWS.Env
-type AwsInstance = Instance AWS.Env EC2.Instance
-type AwsReserved = Reserved AWS.Env ReservedInstances
-
-type AwsUsedReserved = Used AwsReserved AwsInstance
-
-type AwsSplitReserved = Split AwsReserved AwsInstance
-type AwsSplitUsedReserved = Split AwsUsedReserved AwsInstance
-
-type AwsCombineReserved = Combine AwsReserved
-
-mkAwsModel :: [AwsInstance] -> [AwsReserved] -> AwsModel
-mkAwsModel is rs = Model is rs [] [] [] []
+type AwsResource = Resource AWS.Env ReservedInstances EC2.Instance
+type AwsModel = Model AwsResource
+type AwsModelTransition = Transition AwsModel
 
 data IGroup
   = C1
