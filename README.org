@@ -173,6 +173,5 @@
 
 * Contributing
 
-  Create a fork & submit a [[pulls][pull request]] if you would like to
-  contribute new features.  Github [[issues]] is the place to file your
-  desires and grievences.
+  Create a fork & submit a [[../pulls][pull request]] if you would like.  Github
+  [[../issues][issues]] is the place to file your desires and grievences.
