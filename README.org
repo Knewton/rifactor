@@ -20,24 +20,73 @@
 
   [[./docs/reality.png]]
 
-  Over time, as you terminate & relaunch nodes, your Reserved
+  Over time, as you terminate & re-launch Instances, your Reserved
   Instances may no longer match your running Instances.  We'll need to
   reconfigure your Reserved Instances so they match your new
   configuration so you aren't paying double.
 
   [[./docs/after.png]]
 
-  This application considers all of your reserved instances applicable
-  to all of your other accounts listed in the config file.  If you
-  have related accounts such as a billing account (with the Reserved
-  Instances in it) and other working accounts with the Instances
-  running in them, the app will consider all of them as a whole & try
-  to apply the best Reserved Instance reconfiguration.
+  Getting this just right across all your accounts & machines is
+  tedious. Luckily computers are good at the tedious stuff.  RIFactor
+  will (read-only) probe your Amazon account for EC2 Instance &
+  Reserved Instances information.  It then does three transformations
+  of the Model in order:
+
+  1. RIFactor matches running Instances with the current Reserved
+     Instances.
+
+     - Model Input
+       1. Instances
+       2. Reserved Instances
+
+     - Model Output
+       1. Instances (unmatched)
+       2. Reserved Instances (unmatched)
+       3. Used Reserved Instances (partial or full)
+
+  2. RIFactor will then combine empty Reserved Instances together.
+
+     - Model Input
+       1. Reserved Instances
+
+     - Model Output
+       1. Reserved Instances (unmatched)
+       2. Combined Reserved Instances
+
+  3. RIFactor will then split your Reserved Instances and Used
+     Reserved Instances up to fit remaining Instances.
+
+     - Model Input
+       1. Instances (unmatched)
+       2. Reserved Instances (unmatched)
+       3. Used Reserved Instances (partially used but not to capacity)
+
+     - Model Output
+       1. Instances (unmatched)
+       2. Reserved Instances (unmatched)
+       3. Used Reserved Instances (partial or full)
+       4. Split Reserved Instances (partial or full)
+       5. Split Used Reserved Instances (partial or full)
+
+  Once RIFactor has probed Amazon for data & ran the Model through
+  these transformations, it can show you the plan and execute on it.
+
+  NOTE: The purpose of combining Reserved Instances back together
+  again is to optimize applicability. We want, where possible, the
+  Reserved Instances to be in as big as they can be so we can apply
+  them to the most Instances we can.  This counteracts our splitting
+  them up again (to fit new node sizes.)
+
+  NOTE: RIFactor considers all of your accounts listed in the config
+  file to be linked together on Amazon's billing.  If you have related
+  accounts such as a billing account (with the Reserved Instances in
+  it) and other working accounts with the Instances running in them,
+  the app will consider all of them as a whole & try to apply the best
+  Reserved Instance reconfiguration.  If you have many unrelated
+  accounts, then just create a config file for each account.
 
   [[./docs/accounts.png]]
-
-  If you have many unrelated accounts, then just create a config file
-  for each account.
 
 * Downloads
 
@@ -52,7 +101,7 @@
   attempt to do before actually running it without.*
 
   In all cases you should monitor your account(s) to make sure your
-  reserved instances match your running instances during our alpha &
+  Reserved Instances match your running instances during our alpha &
   beta periods.
 
 *** [[http://place-where-we-download.com][Docker Image]]
@@ -84,7 +133,7 @@
 
     Create a new IAM User on each of your AWS accounts.  This user
     account will be used to access your amazon account & modify
-    reserved instances.
+    Reserved Instances.
 
     Save the credentials (access key & secret key) given to you when
     you create the new user.  The name of the IAM User does not
@@ -173,6 +222,5 @@
 
 * Contributing
 
-  Create a fork & submit a [[pulls][pull request]] if you would like to
-  contribute new features.  Github [[issues]] is the place to file your
-  desires and grievences.
+  Create a fork & submit a [[../pulls][pull request]] if you would like.  Github
+  [[../issues][issues]] is the place to file your desires and grievances.
