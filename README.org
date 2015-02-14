@@ -48,13 +48,6 @@
 
   2. RIFactor will then match unmatched Reserved Instances together.
 
-     NOTE: The purpose of joining reserved instances back together
-     again would be to optimize applicability. We want, where
-     possible, the reserved instances to be in as big as they can be
-     so we can apply them to the most nodes we can.  This counteracts
-     our tendency to want to split them up again (to fit new node
-     sizes.)
-
      - Model Input
        1. Reserved Instances
 
@@ -77,19 +70,24 @@
        4. Split Reserved Instances (partial or full)
        5. Split Used Reserved Instances (partial or full)
 
-  RIFactor can then show you the plan and execute on it.
+  Once RIFactor has probed Amazon for data & ran the model through
+  these transformations, it can show you the plan and execute on it.
 
-  This application considers all of your accounts listed in the config
+  NOTE: The purpose of combining Reserved Instances back together
+  again is to optimize applicability. We want, where possible, the
+  Reserved Instances to be in as big as they can be so we can apply
+  them to the most Instances we can.  This counteracts our splitting
+  them up again (to fit new node sizes.)
+
+  NOTE: RIFactor considers all of your accounts listed in the config
   file to be linked together on Amazon's billing.  If you have related
   accounts such as a billing account (with the Reserved Instances in
   it) and other working accounts with the Instances running in them,
   the app will consider all of them as a whole & try to apply the best
-  Reserved Instance reconfiguration.
+  Reserved Instance reconfiguration.  If you have many unrelated
+  accounts, then just create a config file for each account.
 
   [[./docs/accounts.png]]
-
-  If you have many unrelated accounts, then just create a config file
-  for each account.
 
 * Downloads
 
