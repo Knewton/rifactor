@@ -27,12 +27,58 @@
 
   [[./docs/after.png]]
 
-  This application considers all of your reserved instances applicable
-  to all of your other accounts listed in the config file.  If you
-  have related accounts such as a billing account (with the Reserved
-  Instances in it) and other working accounts with the Instances
-  running in them, the app will consider all of them as a whole & try
-  to apply the best Reserved Instance reconfiguration.
+  Getting this just right across all your accounts & machines is
+  tedious. Luckily computers are good at the tedious stuff.  RIFactor
+  will (read-only) probe your Amazon account for EC2 Instance &
+  Reserved Instances information.  It then catalogs the Reserved
+  Instances & matches them up with Instances it finds running.  It
+  then does three things in order:
+
+  1. RIFactor matches running Instances with the current Reserved
+     Instances.
+
+     This results in a model where the input is list of:
+     - Instances
+     - Reserved Instances 
+     Will be lists of:
+     - Instances (unmatched)
+     - Reserved Instances (unmatched)
+     - Used Reserved Instances (partial or full)
+
+  2. RIFactor will then match unmatched Reserved Instances together.
+
+     The purpose of joining reserved instances back together again
+     would be to optimize applicability. We want, where possible, the
+     resereved instances to be in as big as they can be so we can
+     apply them to the most nodes we can.
+
+     This results in a model where the input is list of:
+     - Reserved Instances 
+     Will be lists of:
+     - Reserved Instances (unmatched)
+     - Combined Reserved Instances
+
+  3. RIFactor will then split your Reserved Instances up to fit new nodes.
+
+     Here the results of a model where we have lists of:
+     - Instances (unmatched)
+     - Reserved Instances (unmatched)
+     - Used Reserved Instances (partially used but not to capacity)
+     Will be lists of:
+     - Instances (unmatched)
+     - Reserved Instances (unmatched)
+     - Used Reserved Instances (partial or full)
+     - Split Reserved Instances (partial or full)
+     - Split Used Reserved Instances (partial or full)
+
+  RIFactor can then show you the plan and execute on it.
+
+  This application considers all of your accounts listed in the config
+  file to be linked together on Amazon's billing.  If you have related
+  accounts such as a billing account (with the Reserved Instances in
+  it) and other working accounts with the Instances running in them,
+  the app will consider all of them as a whole & try to apply the best
+  Reserved Instance reconfiguration.
 
   [[./docs/accounts.png]]
 
