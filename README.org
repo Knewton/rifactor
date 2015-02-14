@@ -217,8 +217,9 @@
 
 * Building
 
-  You need the GHC 7.8.x compiler & cabal-install (Homebrew or [[https://launchpad.net/~hvr/%2Barchive/ubuntu/ghc][Ubuntu
-  PPA]] will work). Review the [[.travis.yml][Travis CI Config File]] for build steps.
+  You need the GHC 7.8.x compiler & cabal-install ([[http://brew.sh/][Homebrew]], [[https://github.com/fpco/minghc][minghc]] or
+  [[https://launchpad.net/~hvr/%2Barchive/ubuntu/ghc][Ubuntu PPA]] will work). Review the [[.travis.yml][Travis CI Config File]] for build
+  steps.
 
 * Contributing
 
