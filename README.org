@@ -30,9 +30,8 @@
   Getting this just right across all your accounts & machines is
   tedious. Luckily computers are good at the tedious stuff.  RIFactor
   will (read-only) probe your Amazon account for EC2 Instance &
-  Reserved Instances information.  It then catalogs the Reserved
-  Instances & matches them up with Instances it finds running.  It
-  then does three things in order:
+  Reserved Instances information.  It then does three transformations
+  of the Model in order:
 
   1. RIFactor matches running Instances with the current Reserved
      Instances.
