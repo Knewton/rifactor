@@ -15,14 +15,10 @@ install:
  - travis_retry cabal update
  - cabal sandbox init
  - cabal install -j --enable-tests --enable-benchmarks --enable-documentation
-     --enable-split-objs --force-reinstalls --only-dependencies
+     --force-reinstalls --only-dependencies
 
 script:
  - cabal install -j --enable-tests --enable-benchmarks --enable-documentation
-     --enable-executable-stripping
- - ls -la ./.cabal-sandbox/bin/rifactor
- - strip ./.cabal-sandbox/bin/rifactor
- - ls -la ./.cabal-sandbox/bin/rifactor
  - cabal test
  - cabal check
 #- cabal haddock
