@@ -15,7 +15,7 @@ install:
  - travis_retry cabal update
  - cabal sandbox init
  - cabal install -j --enable-tests --enable-benchmarks --enable-documentation
-     --force-reinstalls --only-dependencies
+     --force-reinstalls --only-dependencies --enable-split-objs
 
 script:
  - cabal install -j --enable-tests --enable-benchmarks --enable-documentation
