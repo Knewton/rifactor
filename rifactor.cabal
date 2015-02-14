@@ -78,11 +78,6 @@ executable rifactor
                      , cabal-file-th
                      , git-embed
                      , optparse-applicative
-                     -- Tests
-                     , tasty
-                     , tasty-hspec
-                     , tasty-quickcheck
-                     , tasty-smallcheck
 
 test-suite test
   default-language:    Haskell2010
