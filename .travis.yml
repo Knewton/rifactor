@@ -17,11 +17,11 @@ install:
  - echo "$(ghc --version) [$(ghc --print-project-git-commit-id 2> /dev/null || echo '?')]"
  - travis_retry cabal update
  - cabal sandbox init
- - cabal install -j --ghc-options='-fllvm' --enable-tests --enable-benchmarks --enable-documentation
+ - cabal install -j --enable-tests --enable-benchmarks --enable-documentation
      --force-reinstalls --only-dependencies
 
 script:
- - cabal install -j --ghc-options='-fllvm' --enable-tests --enable-benchmarks --enable-documentation
+ - cabal install -j --enable-tests --enable-benchmarks --enable-documentation
  - cabal test
  - cabal check
 #- cabal haddock
