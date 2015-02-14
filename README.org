@@ -31,46 +31,46 @@
   tedious. Luckily computers are good at the tedious stuff.  RIFactor
   will (read-only) probe your Amazon account for EC2 Instance &
   Reserved Instances information.  It then does three transformations
-  of the Model in order:
+  of the Manifest in order:
 
   1. RIFactor matches running Instances with the current Reserved
      Instances.
 
-     - Model Input
+     - Input
        1. Instances
        2. Reserved Instances
 
-     - Model Output
+     - Output
        1. Instances (unmatched)
        2. Reserved Instances (unmatched)
        3. Used Reserved Instances (partial or full)
 
   2. RIFactor will then combine empty Reserved Instances together.
 
-     - Model Input
-       1. Reserved Instances
+     - Input
+       1. Reserved Instances (unmatched)
 
-     - Model Output
+     - Output
        1. Reserved Instances (unmatched)
        2. Combined Reserved Instances
 
   3. RIFactor will then split your Reserved Instances and Used
      Reserved Instances up to fit remaining Instances.
 
-     - Model Input
+     - Input
        1. Instances (unmatched)
        2. Reserved Instances (unmatched)
        3. Used Reserved Instances (partially used but not to capacity)
 
-     - Model Output
+     - Output
        1. Instances (unmatched)
        2. Reserved Instances (unmatched)
        3. Used Reserved Instances (partial or full)
        4. Split Reserved Instances (partial or full)
        5. Split Used Reserved Instances (partial or full)
 
-  Once RIFactor has probed Amazon for data & ran the Model through
-  these transformations, it can show you the plan and execute on it.
+  Once RIFactor has probed Amazon for data & ran the Manifest through
+  these transformations, it can show you the plan and execute.
 
   NOTE: The purpose of combining Reserved Instances back together
   again is to optimize applicability. We want, where possible, the
