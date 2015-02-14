@@ -20,7 +20,7 @@
 
   [[./docs/reality.png]]
 
-  Over time, as you terminate & relaunch nodes, your Reserved
+  Over time, as you terminate & re-launch nodes, your Reserved
   Instances may no longer match your running Instances.  We'll need to
   reconfigure your Reserved Instances so they match your new
   configuration so you aren't paying double.
@@ -37,39 +37,45 @@
   1. RIFactor matches running Instances with the current Reserved
      Instances.
 
-     This results in a model where the input is list of:
-     - Instances
-     - Reserved Instances 
-     Will be lists of:
-     - Instances (unmatched)
-     - Reserved Instances (unmatched)
-     - Used Reserved Instances (partial or full)
+     - Model Input
+       1. Instances
+       2. Reserved Instances
+
+     - Model Output
+       1. Instances (unmatched)
+       2. Reserved Instances (unmatched)
+       3. Used Reserved Instances (partial or full)
 
   2. RIFactor will then match unmatched Reserved Instances together.
 
-     The purpose of joining reserved instances back together again
-     would be to optimize applicability. We want, where possible, the
-     resereved instances to be in as big as they can be so we can
-     apply them to the most nodes we can.
+     NOTE: The purpose of joining reserved instances back together
+     again would be to optimize applicability. We want, where
+     possible, the reserved instances to be in as big as they can be
+     so we can apply them to the most nodes we can.  This counteracts
+     our tendency to want to split them up again (to fit new node
+     sizes.)
 
-     This results in a model where the input is list of:
-     - Reserved Instances 
-     Will be lists of:
-     - Reserved Instances (unmatched)
-     - Combined Reserved Instances
+     - Model Input
+       1. Reserved Instances
 
-  3. RIFactor will then split your Reserved Instances up to fit new nodes.
+     - Model Output
+       1. Reserved Instances (unmatched)
+       2. Combined Reserved Instances
 
-     Here the results of a model where we have lists of:
-     - Instances (unmatched)
-     - Reserved Instances (unmatched)
-     - Used Reserved Instances (partially used but not to capacity)
-     Will be lists of:
-     - Instances (unmatched)
-     - Reserved Instances (unmatched)
-     - Used Reserved Instances (partial or full)
-     - Split Reserved Instances (partial or full)
-     - Split Used Reserved Instances (partial or full)
+  3. RIFactor will then split your Reserved Instances and Used
+     Reserved Instances up to fit remaining Instances.
+
+     - Model Input
+       1. Instances (unmatched)
+       2. Reserved Instances (unmatched)
+       3. Used Reserved Instances (partially used but not to capacity)
+
+     - Model Output
+       1. Instances (unmatched)
+       2. Reserved Instances (unmatched)
+       3. Used Reserved Instances (partial or full)
+       4. Split Reserved Instances (partial or full)
+       5. Split Used Reserved Instances (partial or full)
 
   RIFactor can then show you the plan and execute on it.
 
@@ -220,4 +226,4 @@
 * Contributing
 
   Create a fork & submit a [[../pulls][pull request]] if you would like.  Github
-  [[../issues][issues]] is the place to file your desires and grievences.
+  [[../issues][issues]] is the place to file your desires and grievances.
