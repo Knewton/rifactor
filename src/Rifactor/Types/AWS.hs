@@ -31,8 +31,8 @@ default (Text)
 
 type AwsEnv = Env AWS.Env
 type AwsResource = Resource AWS.Env ReservedInstances EC2.Instance
-type AwsModel = Model AwsResource
-type AwsModelTransition = Transition AwsModel
+type AwsPlan = Plan AwsResource
+type AwsPlanTransition = Transition AwsPlan
 
 data IGroup
   = C1

@@ -1,6 +1,8 @@
 {-# LANGUAGE ExtendedDefaultRules #-}
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE RecordWildCards #-}
 
 -- Module      : Rifactor.AWS
 -- Copyright   : (c) 2015 Knewton, Inc <se@knewton.com>
@@ -58,7 +60,7 @@ initEnvs cfg lgr =
 checkPendingModifications :: [AwsEnv] -> AWS ()
 checkPendingModifications =
   traverse_ (\e ->
-               runAWST (e ^. env)
+               runAWST (e ^. eEnv)
                        (do rims <-
                              view drimrReservedInstancesModifications <$>
                              send (describeReservedInstancesModifications &
@@ -70,19 +72,19 @@ checkPendingModifications =
                               then pure ()
                               else error "There are pending RI modifications."))
 
-fetchFromAmazon :: [AwsEnv] -> AWS AwsModel
+fetchFromAmazon :: [AwsEnv] -> AWS AwsPlan
 fetchFromAmazon es =
   do insts <- fetchInstances es
      rsrvs <- fetchReserved es
-     case insts ++ rsrvs of
-       [] -> pure Empty
-       as -> pure (Model (map Item as))
+     pure (case insts ++ rsrvs of
+             [] -> Noop
+             is -> Plans (map Item is))
 
 fetchInstances :: [AwsEnv] -> AWS [AwsResource]
 fetchInstances =
   liftA concat .
   traverse (\e ->
-              runAWST (e ^. env)
+              runAWST (e ^. eEnv)
                       (view dirReservations <$>
                        send (describeInstances & di1Filters .~
                              [filter' "instance-state-name" &
@@ -97,7 +99,7 @@ fetchReserved :: [AwsEnv] -> AWS [AwsResource]
 fetchReserved =
   liftA concat .
   traverse (\e ->
-              runAWST (e ^. env)
+              runAWST (e ^. eEnv)
                       (view drirReservedInstances <$>
                        send (describeReservedInstances & driFilters .~
                              [filter' "state" &
@@ -107,21 +109,25 @@ fetchReserved =
               pure .
               map (Reserved e))
 
-{- AWS Model Queries -}
+{- AWS Plan Queries -}
 
-typeSet :: AwsModel -> Set InstanceType
+typeSet :: AwsPlan -> Set InstanceType
 typeSet = foldr f Set.empty
   where f (Reserved _ _) b = b
         f (Instance _ i) b =
           Set.insert (i ^. i1InstanceType)
                      b
 
-regionSet  :: AwsModel -> Set Region
+regionSet  :: AwsPlan -> Set Region
 regionSet = foldr f Set.empty
-  where f (Reserved e _) b = Set.insert (e ^. env ^. envRegion) b
-        f (Instance e _) b = Set.insert (e ^. env ^. envRegion) b
+  where f (Reserved e _) b =
+          Set.insert (e ^. eEnv ^. envRegion)
+                     b
+        f (Instance e _) b =
+          Set.insert (e ^. eEnv ^. envRegion)
+                     b
 
-zoneSet  :: AwsModel -> Set Text
+zoneSet  :: AwsPlan -> Set Text
 zoneSet =
   Set.fromList .
   catMaybes .
@@ -134,7 +140,7 @@ zoneSet =
           Set.insert (i ^. i1Placement ^. pAvailabilityZone)
                      b
 
-sumNormalizationFactor :: AwsModel -> Maybe Float
+sumNormalizationFactor :: AwsPlan -> Maybe Float
 sumNormalizationFactor = foldr f (Just 0)
   where f (Reserved _ r) b =
           liftA2 (+)
@@ -148,11 +154,74 @@ sumNormalizationFactor = foldr f (Just 0)
                 insFactor +)
                b
 
-sumInstanceCount :: AwsModel -> Maybe Int
+sumInstanceCount :: AwsPlan -> Maybe Int
 sumInstanceCount m = foldr f (Just 0) m
   where f (Instance _ _) b = fmap (+ 1) b
         f (Reserved _ r) b =
           liftA2 (+) (r ^. ri1InstanceCount) b
+
+hasCapacityFor :: AwsPlan -> AwsPlan -> Bool
+hasCapacityFor = undefined -- TODO WRITE THIS!
+
+isInstance :: AwsPlan -> Bool
+isInstance = foldr f False
+  where f Instance{..} _ = True
+        f _ _ = False
+
+isReserved :: AwsPlan -> Bool
+isReserved = foldr f False
+  where f Reserved{..} _ = True
+        f _ _ = False
+
+foldInstance fn b m0 m1 = foldr (f fn) b m0
+  where f f' x@Instance{..} z = foldr (fn x) True m1
+        f f' _ z = z
+
+foldReserved fn b m0 m1 = foldr (f fn) b m0
+  where f f' x@Reserved{..} z = foldr (fn x) True m1
+        f f' _ z = z
+
+couldWorkWith :: AwsPlan -> AwsPlan -> Bool
+couldWorkWith m0 m1 =
+  foldReserved isInstanceMatch False m0 m1
+  where isInstanceMatch (Reserved er r) (Instance ei i) _ =
+          -- windows goes with windows
+          (((r ^. ri1ProductDescription) `elem`
+            [Just RIPDWindows,Just RIPDWindowsAmazonVPC]) ==
+           ((i ^. i1Platform) ==
+            Just Windows)) &&
+          -- vpc goes with vpc
+          (((r ^. ri1ProductDescription) `elem`
+            [Just RIPDLinuxUNIXAmazonVPC,Just RIPDWindowsAmazonVPC]) ==
+           isJust (i ^. i1VpcId)) &&
+          -- same region
+          (er ^. eEnv ^. envRegion) ==
+          (ei ^. eEnv ^. envRegion)
+        isInstanceMatch _ _ _ = False
+
+worksWith :: AwsPlan -> AwsPlan -> Bool
+worksWith m0 m1 =
+  foldr isMatch True m0
+  where isMatch a@Reserved{..} b =
+          b &&
+          foldr (isInstanceMatch a) True m1
+        isMatch _ _ = False
+        isInstanceMatch (Reserved _ r) (Instance _ i) b =
+          b &&
+          -- windows goes with windows
+          (((r ^. ri1ProductDescription) `elem`
+            [Just RIPDWindows,Just RIPDWindowsAmazonVPC]) ==
+           ((i ^. i1Platform) ==
+            Just Windows)) &&
+          -- vpc goes with vpc
+          (((r ^. ri1ProductDescription) `elem`
+            [Just RIPDLinuxUNIXAmazonVPC,Just RIPDWindowsAmazonVPC]) ==
+           isJust (i ^. i1VpcId)) &&
+          -- same instance type
+          (r ^. ri1InstanceType == i ^? i1InstanceType) &&
+          -- same availability zone
+          (r ^. ri1AvailabilityZone == i ^. i1Placement ^. pAvailabilityZone)
+        isInstanceMatch _ _ _ = False
 
 {- EC2 Instance Type/Group/Factor Table & Lookup -}
 

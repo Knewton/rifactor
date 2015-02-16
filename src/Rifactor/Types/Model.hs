@@ -1,6 +1,9 @@
 {-# LANGUAGE DeriveFoldable #-}
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE DeriveTraversable #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE FunctionalDependencies #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE TemplateHaskell #-}
 
@@ -21,37 +24,37 @@ import Data.Text (Text)
 import Rifactor.Types.Internal (deriveOptions)
 
 data Env a =
-  Env {_env :: a
-      ,_envName :: Text}
+  Env {_eEnv :: a
+      ,_eName :: Text}
   deriving (Eq,Foldable,Functor,Show,Traversable)
-
-$(makeLenses ''Env)
 
 data Resource e r i
-  = Reserved {_resEnv :: Env e
-             ,_resource :: r}
-  | Instance {_resEnv :: Env e
-             ,_instance :: i}
+  = Reserved {_rEnv :: Env e
+             ,_rReserved :: r}
+  | Instance {_iEnv :: Env e
+             ,_iInstance :: i}
   deriving (Eq,Foldable,Functor,Show,Traversable)
 
-$(makeLenses ''Resource)
-
-data Model a
-  = Empty
+data Plan a
+  = Noop
   | Item {_item :: a}
-  | Used {_used :: Model a
-         ,_by :: [Model a]}
-  | Merge {_merged :: [Model a]}
-  | Split {_split :: Model a
-          ,_by :: [Model a]}
-  | Full {_full :: Model a}
-  | Model {_model :: [Model a]}
+  | Used {_used :: Plan a
+         ,_usedBy :: [Plan a]}
+  | Merge {_merged :: [Plan a]}
+  | Split {_split :: Plan a
+          ,_splitBy :: [Plan a]}
+  | Full {_full :: Plan a}
+  | Plans {_plans :: [Plan a]}
   deriving (Eq,Foldable,Functor,Show,Traversable)
-
-$(makeLenses ''Model)
 
 type Transition a = a -> a
 
+$(makeClassy ''Env)
+$(makeClassy ''Resource)
+$(makeClassy ''Plan)
+
+$(makeClassyPrisms ''Plan)
+
 $(deriveToJSON deriveOptions ''Env)
 $(deriveToJSON deriveOptions ''Resource)
-$(deriveToJSON deriveOptions ''Model)
+$(deriveToJSON deriveOptions ''Plan)

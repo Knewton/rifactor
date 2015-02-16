@@ -4,6 +4,7 @@
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE RecordWildCards #-}
 
 -- Module      : Rifactor.Plan
 -- Copyright   : (c) 2015 Knewton, Inc <se@knewton.com>
@@ -15,79 +16,77 @@
 
 module Rifactor.Plan where
 
-import           BasePrelude hiding (getEnv)
+import           BasePrelude
 import           Control.Lens
-import           Control.Monad.IO.Class ()
-import           Control.Monad.Trans.AWS hiding (accessKey, secretKey)
+import qualified Control.Monad.Trans.AWS as AWS
+import           Control.Monad.Trans.AWS hiding (Env)
 import           Control.Monad.Trans.Resource (runResourceT)
-import qualified Data.Aeson as A
+import           Data.Aeson
+import qualified Data.ByteString.Lazy.Char8 as LB
 import           Data.Conduit (($$))
-import qualified Data.Conduit.Attoparsec as C (sinkParser)
-import qualified Data.Conduit.Binary as C (sourceFile)
-import qualified Data.Text as T
-import           Data.UUID hiding (null, fromString)
-import           Data.UUID.V4
-import           Network.AWS.EC2 hiding (Instance)
+import           Data.Conduit.Attoparsec (sinkParser)
+import           Data.Conduit.Binary (sourceFile)
+import           Data.Text (Text)
+import qualified Network.AWS.Data as AWS
+import qualified Network.AWS.EC2 as EC2
+import           Network.AWS.EC2 hiding (Error,Instance,Region)
 import           Rifactor.AWS
-import           Rifactor.Capacity
-import           Rifactor.Summary
 import           Rifactor.Types
 import           System.IO (stdout)
 
-default (T.Text)
+default (Text)
 
--- -- | Read in the config file (JSON). If we failed to read the file,
--- -- exit. If we read it OK, then continue on to querying Amazon for
--- -- pending reserverd instance modifications.
--- --
--- -- If we have any of ReservedInstanceModifications in progress then we
--- -- have to stop right here. It's too hard to reason about Amazon
--- -- accepting or denying any of our change requests. We can't really
--- -- build a plan on top of a mystery outcome. We'll just wait this
--- -- round if that's the case.
--- --
--- -- If we don't have any pending modifications, then we get on with the
--- -- show. We query Amazon for data on EC2 Instances &
--- -- ReservedInstances in every Region in the config file & for every
--- -- set of Amazon IAM credentials in the account.
--- --
--- -- We then build a model in memory of what's going on over at Amazon
--- -- WRT which instances actually count against our ReservedInstances &
--- -- which ones don't.
--- plan :: Options -> IO ()
--- plan opts =
---   do config <-
---        runResourceT $
---        C.sourceFile (opts ^. file) $$
---        C.sinkParser A.json
---      case (A.fromJSON config :: A.Result Config) of
---        (A.Error err) -> putStrLn err >> exitFailure
---        (A.Success cfg) ->
---          do lgr <-
---               newLogger (if opts ^. verbose
---                             then Trace
---                             else Info)
---                         stdout
---             env' <- noKeysEnv
---             es <- initEnvs cfg lgr
---             pending <-
---               runAWST env' (checkPendingModifications es)
---             case pending of
---               (Left err) -> print err >> exitFailure
---               _ ->
---                 do results <-
---                      runAWST env' (fetchFromAmazon es)
---                    case results of
---                      (Left err) -> print err >> exitFailure
---                      (Right m) ->
---                        do when (opts ^. verbose)
---                                (printGroupSums m)
---                           let m' = transition m
---                           if (opts ^. dry)
---                             then (printChangesPlanned m')
---                             else (changeReserved m')
+-- | Read in the config file (JSON). If we failed to read the file,
+-- exit. If we read it OK, then continue on to querying Amazon for
+-- pending reserverd instance modifications.
+--
+-- If we have any of ReservedInstanceModifications in progress then we
+-- have to stop right here. It's too hard to reason about Amazon
+-- accepting or denying any of our change requests. We can't really
+-- build a plan on top of a mystery outcome. We'll just wait this
+-- round if that's the case.
+--
+-- If we don't have any pending modifications, then we get on with the
+-- show. We query Amazon for data on EC2 Instances &
+-- ReservedInstances in every Region in the config file & for every
+-- set of Amazon IAM credentials in the account.
+--
+-- We then build a model in memory of what's going on over at Amazon
+-- WRT which instances actually count against our ReservedInstances &
+-- which ones don't.
+exec :: Options -> IO ()
+exec opts =
+  do config <-
+       runResourceT $
+       sourceFile (opts ^. confFile) $$
+       sinkParser json
+     case (fromJSON config :: Result Config) of
+       (Error err) -> putStrLn err >> exitFailure
+       (Success cfg) ->
+         do lgr <-
+              newLogger (if opts ^. verbose
+                            then Trace
+                            else Info)
+                        stdout
+            noEnv <- noKeysEnv
+            envs <- initEnvs cfg lgr
+            pending <-
+              runAWST (noEnv ^. eEnv)
+                      (checkPendingModifications envs)
+            case pending of
+              (Left err) -> print err >> exitFailure
+              _ ->
+                do fetch <-
+                     runAWST (noEnv ^. eEnv)
+                             (fetchFromAmazon envs)
+                   case fetch of
+                     (Left err) -> print err >> exitFailure
+                     (Right m) ->
+                       do let m' = transition m
+                          when (opts ^. verbose)
+                               (LB.putStrLn (encode m'))
 
--- printGroupSums :: Model -> IO ()
+-- printGroupSums :: Plan -> IO ()
 -- printGroupSums m =
 --   let instanceGroups =
 --         map (\gs@(i:_) ->
@@ -121,7 +120,7 @@ default (T.Text)
 --                      (sortBy comparingReserved (m ^. reserved)))
 --   in traverse_ print (sort (concat [instanceGroups,reservedGroups]))
 
--- printChangesPlanned :: Model -> IO ()
+-- printChangesPlanned :: Plan -> IO ()
 -- printChangesPlanned m =
 --   do traverse_ (putStrLn . T.unpack . summary)
 --                (filter (not . null . view reNewInstances)
@@ -129,7 +128,7 @@ default (T.Text)
 --      traverse_ (putStrLn . T.unpack . summary)
 --                (m ^. combined)
 
--- changeReserved :: Model -> IO ()
+-- changeReserved :: Plan -> IO ()
 -- changeReserved m =
 --   traverse_ (\r ->
 --                do rs <- doUpdateReserved r
@@ -145,59 +144,42 @@ default (T.Text)
 --             (filter (not . null . view reNewInstances)
 --                     (m ^. reserved))
 
--- -- | Take an initial Model and then transition it through steps &
--- -- return the new Model.
--- transition :: Transition
--- transition = packReserved . combineReserved . matchReserved
+-- | Transform the Plan through steps & return the new Plan.
+transition :: AwsPlanTransition
+transition = splitReserved . mergeReserved . matchReserved
 
--- -- | Match Reserved with Instance nodes instance type, network type &
--- -- availability zone.
--- matchReserved :: Transition
--- matchReserved = mergeInstances matchFn mergeFn
---   where matchFn (Reserved _ _ r _ _) (Instance _ _ i) =
---           -- windows goes with windows
---           (((r ^. ri1ProductDescription) `elem`
---             [Just RIPDWindows,Just RIPDWindowsAmazonVPC]) ==
---            ((i ^. i1Platform) ==
---             Just Windows)) &&
---           -- vpc goes with vpc
---           (((r ^. ri1ProductDescription) `elem`
---             [Just RIPDLinuxUNIXAmazonVPC,Just RIPDWindowsAmazonVPC]) ==
---            isJust (i ^. i1VpcId)) &&
---           -- same instance type
---           (r ^. ri1InstanceType == i ^? i1InstanceType) &&
---           -- same availability zone
---           (r ^. ri1AvailabilityZone == i ^. i1Placement ^. pAvailabilityZone)
---         mergeFn (Reserved a e r is nis) o =
---           (Reserved a e r (o : is) nis)
+-- | Transform Reserved + Instance = Used Reserved matching
+-- on instance type, network type & availability zone.
+matchReserved :: AwsPlanTransition
+matchReserved =
+  mergeInstances matchFn mergeFn
+  where matchFn m0 m1 = m0 `worksWith` m1 && m0 `hasCapacityFor` m1
+        mergeFn r@Item{..} i = Used r [i]
+        mergeFn u@Used{..} r@Item{..} = u & usedBy %~ (|> r)
 
--- packReserved :: Transition
--- packReserved = mergeInstances matchFn mergeFn
---   where matchFn (Reserved _ er r _ _) (Instance _ ei i) =
---           -- windows goes with windows
---           (((r ^. ri1ProductDescription) `elem`
---             [Just RIPDWindows,Just RIPDWindowsAmazonVPC]) ==
---            ((i ^. i1Platform) ==
---             Just Windows)) &&
---           -- vpc goes with vpc
---           (((r ^. ri1ProductDescription) `elem`
---             [Just RIPDLinuxUNIXAmazonVPC,Just RIPDWindowsAmazonVPC]) ==
---            isJust (i ^. i1VpcId)) &&
---           -- same region
---           (er ^. envRegion) ==
---           (ei ^. envRegion)
---         mergeFn (Reserved a e r is nis) o =
---           (Reserved a e r is (o : nis))
+-- | Match Reserved with Instances in the same offering type, network
+-- type & region.
+splitReserved :: AwsPlanTransition
+splitReserved =
+  mergeInstances matchFn mergeFn
+  where matchFn m0 m1 = m0 `couldWorkWith` m1 && m0 `hasCapacityFor` m1
+        mergeFn r@Item{..} i = Split r [i]
+        mergeFn s@Split{..} i = s & splitBy %~ (|> i)
 
--- -- | Of the Reserved Instances that aren't currently being used,
--- -- combine RIs where conditions permit (see Amazon specs).
--- combineReserved :: Transition
--- combineReserved (Model os rs cs) =
+-- | Of the Reserved Instances that aren't currently being used,
+-- merge RIs where conditions permit (see Amazon specs).
+mergeReserved :: AwsPlanTransition
+mergeReserved = undefined -- TODO WRITE THIS!
+
+-- let (reserves,rest) = (Item (Reserved))
+-- foldr over those returning (r,rejects)
+
+-- mergeReserved (Plan os rs cs) =
 --   go (groupBy matches rs) [] cs
---   where go [] rs' cs' = Model os rs' cs'
+--   where go [] rs' cs' = Plan os rs' cs'
 --         go (g:gs) rs' cs' =
 --           if length g > 1
---              then go gs rs' (cons (Combine g) cs')
+--              then go gs rs' (cons (Merge g) cs')
 --              else go gs (g ++ rs') cs'
 --         matches r0 r1
 --           | isNothing (r0 ^. reReserved ^. ri1InstanceType) ||
@@ -214,43 +196,43 @@ default (T.Text)
 --           (er0 ^. envRegion == er1 ^. envRegion)
 --         matches _ _ = False
 
--- -- | This function is an abstraction. We repeatedly need to take a
--- -- Reserved that we know little about & associate Instance instances
--- -- with it based on criteria.
--- --
--- -- Using the supplied first-argument function, find the Reserved that
--- -- match. From that list look for any Instance that match the
--- -- second-argument function. If there is a match we pass Reserved data
--- -- to the 3rd function which constructs a new Reserved record (which
--- -- we exchange for the prevous Reserved record in the Model).
--- --
--- -- This is repeated for every Reserved in the Model. At the end of the
--- -- recursion you are left with a new version of the Model.
--- mergeInstances :: (Reserved -> Instance -> Bool)
---                -> (Reserved -> Instance -> Reserved)
---                -> Transition
--- mergeInstances matchFn mergeFn (Model os rs cs) =
---   go os rs []
---   where go [] ys zs = Model [] (ys ++ zs) cs
---         go xs [] zs = Model xs zs cs
---         go xs (y:ys) zs =
---           -- do we have any instances that match this reserved?
---           case partition (matchFn y) xs of
---             ([],_) -> go xs ys (y : zs)
---             (hits,misses) ->
---               -- fold instances that fit left into the reserved
---               let (result,rejects) =
---                     foldl (\(r,rejected) o ->
---                              if (isInstanceTypeMatch r o)
---                                 then (mergeFn r o,rejected)
---                                 else (r,o : rejected))
---                           (y,[])
---                           hits
---               in
---                  -- then on to the next reserved
---                  go (misses ++ rejects)
---                     ys
---                     (result : zs)
+-- | This function is an abstraction. We repeatedly need to take a
+-- Reserved that we know little about & associate Instance instances
+-- with it based on criteria.
+--
+-- Using the supplied first-argument function, find the Reserved that
+-- match. From that list look for any Instance that match the
+-- second-argument function. If there is a match we pass Reserved data
+-- to the 3rd function which constructs a new Reserved record (which
+-- we exchange for the prevous Reserved record in the Plan).
+--
+-- This is repeated for every Reserved in the Plan. At the end of the
+-- recursion you are left with a new version of the Plan.
+-- mergeInstances :: (AwsPlan -> AwsPlan -> Bool)
+--                -> (AwsPlan -> AwsPlan -> AwsPlan)
+--                -> AwsPlanTransition
+mergeInstances matchFn mergeFn m = undefined
+  -- go os rs []
+  -- where go [] ys zs = Plan [] (ys ++ zs) cs
+  --       go xs [] zs = Plan xs zs cs
+  --       go xs (y:ys) zs =
+  --         -- do we have any instances that match this reserved?
+  --         case partition (matchFn y) xs of
+  --           ([],_) -> go xs ys (y : zs)
+  --           (hits,misses) ->
+  --             -- fold instances that fit left into the reserved
+  --             let (result,rejects) =
+  --                   foldl (\(r,rejected) o ->
+  --                            if (isInstanceTypeMatch r o)
+  --                               then (mergeFn r o,rejected)
+  --                               else (r,o : rejected))
+  --                         (y,[])
+  --                         hits
+  --             in
+  --                -- then on to the next reserved
+  --                go (misses ++ rejects)
+  --                   ys
+  --                   (result : zs)
 
 -- doUpdateReserved :: Reserved
 --                  -> IO (Either Error ModifyReservedInstancesResponse)
@@ -307,9 +289,9 @@ default (T.Text)
 --                      T.pack (toString uuid)) &
 --                     (mriTargetConfigurations .~ old ++ new)))
 
--- doCombineReserved :: Combine
+-- doMergeReserved :: Merge
 --                   -> IO (Either Error ModifyReservedInstancesResponse)
--- doCombineReserved = undefined
+-- doMergeReserved = undefined
 -- -- TODO calculate the match between two different sized reserved
 
 -- comparingReserved :: Reserved -> Reserved -> Ordering

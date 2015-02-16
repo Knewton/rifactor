@@ -30,7 +30,7 @@ import           Network.AWS.Data (toText)
 import qualified Network.AWS.EC2 as EC2
 import           Network.AWS.EC2 hiding (InstanceType,Instance,ReservedInstances)
 import           Rifactor.AWS
-import           Rifactor.Execute
+import           Rifactor.Plan
 import           Rifactor.Types
 import           Test.Tasty
 import           Test.Tasty.Hspec

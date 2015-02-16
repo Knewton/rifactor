@@ -18,7 +18,7 @@ import Distribution.PackageDescription.TH
 import Git.Embed
 import Language.Haskell.TH
 import Options.Applicative
-import Rifactor.Execute
+import Rifactor.Plan
 import Rifactor.Types
 
 version :: String
@@ -54,4 +54,4 @@ parserInfo =
         progDesc "Optimize AWS Reserved Instances")
 
 main :: IO ()
-main = execParser parserInfo >>= plan
+main = execParser parserInfo >>= exec
