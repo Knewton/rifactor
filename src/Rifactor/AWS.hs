@@ -140,8 +140,16 @@ zoneSet =
           Set.insert (i ^. i1Placement ^. pAvailabilityZone)
                      b
 
-sumNormalizationFactor :: AwsPlan -> Maybe Float
-sumNormalizationFactor = foldr f (Just 0)
+instanceNormFactor :: AwsPlan -> Float
+instanceNormFactor = foldr f 0
+  where f (Instance _ i) b =
+          b +
+          find1ByType (i ^. i1InstanceType) ^.
+          insFactor
+        f _ b = b
+
+rInstanceNormFactor :: AwsPlan -> Maybe Float
+rInstanceNormFactor = foldr f (Just 0)
   where f (Reserved _ r) b =
           liftA2 (+)
                  b
@@ -149,79 +157,130 @@ sumNormalizationFactor = foldr f (Just 0)
                          (fmap realToFrac (r ^. ri1InstanceCount))
                          (fmap (view insFactor)
                                (fmap find1ByType (r ^. ri1InstanceType))))
-        f (Instance _ i) b =
-          fmap (find1ByType (i ^. i1InstanceType) ^.
-                insFactor +)
-               b
+        f _ b = b
 
-sumInstanceCount :: AwsPlan -> Maybe Int
-sumInstanceCount m = foldr f (Just 0) m
-  where f (Instance _ _) b = fmap (+ 1) b
-        f (Reserved _ r) b =
+instanceCount :: AwsPlan -> Int
+instanceCount m = foldr f 0 m
+  where f (Instance _ _) b = b + 1
+        f _ b = b
+
+rInstanceCount :: AwsPlan -> Maybe Int
+rInstanceCount m = foldr f (Just 0) m
+  where f (Reserved _ r) b =
           liftA2 (+) (r ^. ri1InstanceCount) b
+        f _ b = b
+
+availableNormFactor :: AwsPlan -> Maybe Float
+availableNormFactor p =
+  fmap (flip (-) (instanceNormFactor p))
+       (rInstanceNormFactor p)
 
 hasCapacityFor :: AwsPlan -> AwsPlan -> Bool
-hasCapacityFor = undefined -- TODO WRITE THIS!
+hasCapacityFor p0 p1 =
+  let availFactor = availableNormFactor p0
+      newFactor = instanceNormFactor p1
+  in case fmap (flip (-) newFactor) availFactor of
+       Just val -> val >= 0
+       Nothing -> False
 
 isInstance :: AwsPlan -> Bool
-isInstance = foldr f False
-  where f Instance{..} _ = True
+isInstance = foldr f True
+  where f Instance{..} b = b && True
         f _ _ = False
 
 isReserved :: AwsPlan -> Bool
-isReserved = foldr f False
-  where f Reserved{..} _ = True
+isReserved = foldr f True
+  where f Reserved{..} b = b && True
         f _ _ = False
 
-foldInstance fn b m0 m1 = foldr (f fn) b m0
-  where f f' x@Instance{..} z = foldr (fn x) True m1
-        f f' _ z = z
+foldEachInstanceWith fn b p0 p1 = foldr f b p0
+  where f x@Instance{..} z = foldr (fn x) z p1
+        f _ z = z
 
-foldReserved fn b m0 m1 = foldr (f fn) b m0
-  where f f' x@Reserved{..} z = foldr (fn x) True m1
-        f f' _ z = z
+foldEachReservedWith fn b p0 p1 = foldr f b p0
+  where f x@Reserved{..} z = foldr (fn x) z p1
+        f _ z = z
 
-couldWorkWith :: AwsPlan -> AwsPlan -> Bool
-couldWorkWith m0 m1 =
-  foldReserved isInstanceMatch False m0 m1
-  where isInstanceMatch (Reserved er r) (Instance ei i) _ =
-          -- windows goes with windows
-          (((r ^. ri1ProductDescription) `elem`
-            [Just RIPDWindows,Just RIPDWindowsAmazonVPC]) ==
-           ((i ^. i1Platform) ==
-            Just Windows)) &&
-          -- vpc goes with vpc
-          (((r ^. ri1ProductDescription) `elem`
-            [Just RIPDLinuxUNIXAmazonVPC,Just RIPDWindowsAmazonVPC]) ==
-           isJust (i ^. i1VpcId)) &&
-          -- same region
-          (er ^. eEnv ^. envRegion) ==
-          (ei ^. eEnv ^. envRegion)
-        isInstanceMatch _ _ _ = False
+appliesTo :: AwsPlan -> AwsPlan -> Bool
+appliesTo = foldEachReservedWith isInstanceMatch True
 
-worksWith :: AwsPlan -> AwsPlan -> Bool
-worksWith m0 m1 =
-  foldr isMatch True m0
-  where isMatch a@Reserved{..} b =
-          b &&
-          foldr (isInstanceMatch a) True m1
-        isMatch _ _ = False
-        isInstanceMatch (Reserved _ r) (Instance _ i) b =
-          b &&
-          -- windows goes with windows
-          (((r ^. ri1ProductDescription) `elem`
-            [Just RIPDWindows,Just RIPDWindowsAmazonVPC]) ==
-           ((i ^. i1Platform) ==
-            Just Windows)) &&
-          -- vpc goes with vpc
-          (((r ^. ri1ProductDescription) `elem`
-            [Just RIPDLinuxUNIXAmazonVPC,Just RIPDWindowsAmazonVPC]) ==
-           isJust (i ^. i1VpcId)) &&
-          -- same instance type
-          (r ^. ri1InstanceType == i ^? i1InstanceType) &&
-          -- same availability zone
-          (r ^. ri1AvailabilityZone == i ^. i1Placement ^. pAvailabilityZone)
-        isInstanceMatch _ _ _ = False
+couldSplit :: AwsPlan -> AwsPlan -> Bool
+couldSplit = foldEachReservedWith isSplittable True
+
+couldCombine :: AwsPlan -> AwsPlan -> Bool
+couldCombine = foldEachReservedWith isCombineable True
+
+isInstanceMatch :: AwsResource -> AwsResource -> Bool -> Bool
+isInstanceMatch (Reserved _ r) (Instance _ i) acc =
+  acc &&
+  -- windows goes with windows
+  (((r ^. ri1ProductDescription) `elem`
+    [Just RIPDWindows,Just RIPDWindowsAmazonVPC]) ==
+   ((i ^. i1Platform) ==
+    Just Windows)) &&
+  -- vpc goes with vpc
+  (((r ^. ri1ProductDescription) `elem`
+    [Just RIPDLinuxUNIXAmazonVPC,Just RIPDWindowsAmazonVPC]) ==
+   isJust (i ^. i1VpcId)) &&
+  -- same instance type
+  (r ^. ri1InstanceType == i ^? i1InstanceType) &&
+  -- same availability zone
+  (r ^. ri1AvailabilityZone == i ^. i1Placement ^. pAvailabilityZone)
+isInstanceMatch _ _ _ = False
+
+isSplittable :: AwsResource -> AwsResource -> Bool -> Bool
+isSplittable (Reserved er r) (Instance ei i) acc =
+  acc &&
+  -- windows goes with windows
+  (((r ^. ri1ProductDescription) `elem`
+    [Just RIPDWindows,Just RIPDWindowsAmazonVPC]) ==
+   ((i ^. i1Platform) ==
+    Just Windows)) &&
+  -- vpc goes with vpc
+  (((r ^. ri1ProductDescription) `elem`
+    [Just RIPDLinuxUNIXAmazonVPC,Just RIPDWindowsAmazonVPC]) ==
+   isJust (i ^. i1VpcId)) &&
+  -- same region
+  (er ^. eEnv ^. envRegion) ==
+  (ei ^. eEnv ^. envRegion)
+--     -- and also would fit into this split arrangement
+--     let iGroup =
+--           find1ByType (i ^. insInst ^. i1InstanceType) ^.
+--           insGroup
+--         rGroup =
+--           fmap (view insGroup . find1ByType)
+--                (r ^. split ^. used ^. resResv ^. ri1InstanceType)
+--         avail =
+--           liftA2 (-)
+--                  (capacityTotal r)
+--                  (capacityUsed r)
+--         factor =
+--           find1ByType (i ^. insInst ^. i1InstanceType) ^.
+--           insFactor
+--     in (Just iGroup ==
+--         rGroup) &&
+--        case fmap (factor <=) avail of
+--          Nothing -> False
+--          Just _ -> True
+isSplittable _ _ _ = False
+
+isCombineable :: AwsResource -> AwsResource -> Bool -> Bool
+isCombineable (Reserved e0 r0) (Reserved e1 r1) acc =
+  acc &&
+  -- not the same reserved instances
+  (r0 ^. ri1ReservedInstancesId /= r1 ^. ri1ReservedInstancesId) &&
+  -- but still the same end date
+  (r0 ^. ri1End == r1 ^. ri1End) &&
+  -- and the same instance type group (C1, M3, etc)
+  (find1ByType (r0 ^. ri1InstanceType ^?! _Just) ^.
+   insGroup ==
+   find1ByType (r1 ^. ri1InstanceType ^?! _Just) ^.
+   insGroup) &&
+  -- and the same offering type
+  (r0 ^. ri1OfferingType == r1 ^. ri1OfferingType) &&
+  -- and the same region
+  (e0 ^. eEnv ^. envRegion == e1 ^. eEnv ^. envRegion)
+isCombineable _ _ _ = False
 
 {- EC2 Instance Type/Group/Factor Table & Lookup -}
 
@@ -292,175 +351,3 @@ normFactor XLarge   = 8
 normFactor XLarge2X = 16
 normFactor XLarge4X = 32
 normFactor XLarge8X = 64
-
--- instance Combineable AwsReserved AwsReserved where
---   combineable a b =
---     -- same end date
---     (a ^. resResv ^. ri1End == b ^. resResv ^. ri1End) &&
---     -- same instance type group (C1, M3, etc)
---     (find1ByType (a ^. resResv ^. ri1InstanceType ^?! _Just) ^.
---      insGroup ==
---      find1ByType (b ^. resResv ^. ri1InstanceType ^?! _Just) ^.
---      insGroup) &&
---     -- same offering type
---     (a ^. resResv ^. ri1OfferingType == b ^. resResv ^. ri1OfferingType) &&
---     -- same region
---     (a ^. resEnv ^. env ^. envRegion == b ^. resEnv ^. env ^. envRegion)
-
--- instance Combineable AwsCombineReserved AwsReserved where
---   combineable a b =
---     all (combineable b)
---         (a ^. combine ^.. traverse)
-
--- instance Mergeable AwsReserved AwsInstance (Maybe AwsUsedReserved) where
---   merge a b =
---     if matchable a b
---        then Just (Used a [b])
---        else Nothing
-
--- instance Mergeable AwsUsedReserved AwsInstance (Maybe AwsUsedReserved) where
---   merge a b =
---     if matchable a b
---        then Just (a & usedBy %~ (|> b))
---        else Nothing
-
--- instance Mergeable AwsReserved AwsInstance (Maybe AwsSplitReserved) where
---   merge a b =
---     if splittable a b
---        then Just (Split a [b])
---        else Nothing
-
--- instance Mergeable AwsSplitReserved AwsInstance (Maybe AwsSplitReserved) where
---   merge a b =
---     if splittable a b
---        then Just (a & splitBy %~ (|> b))
---        else Nothing
-
--- instance Mergeable AwsUsedReserved AwsInstance (Maybe AwsSplitUsedReserved) where
---   merge a b =
---     if splittable a b
---        then Just (Split a [b])
---        else Nothing
-
--- instance Mergeable AwsSplitUsedReserved AwsInstance (Maybe AwsSplitUsedReserved) where
---   merge a b =
---     if splittable a b
---        then Just (a & splitBy %~ (|> b))
---        else Nothing
-
--- instance Mergeable AwsReserved AwsReserved (Maybe AwsCombineReserved) where
---   merge a b =
---     if combineable a b
---        then Just (Combine [a,b])
---        else Nothing
-
--- instance Mergeable AwsCombineReserved AwsReserved (Maybe AwsCombineReserved) where
---   merge a b =
---     if combineable a b
---        then Just (a & combine %~ (|> b))
---        else Nothing
-
--- instance Splittable AwsReserved AwsInstance where
---   splittable r i =
---     splittable (Split r [] :: AwsSplitReserved)
---                i
-
--- instance Splittable AwsUsedReserved AwsInstance where
---   splittable r i =
---     splittable (Split r [] :: AwsSplitUsedReserved)
---                i
-
--- instance Splittable AwsSplitReserved AwsInstance where
---   splittable r i =
---     -- windows goes with windows
---     (((r ^. split ^. resResv ^. ri1ProductDescription) `elem`
---       [Just RIPDWindows,Just RIPDWindowsAmazonVPC]) ==
---      ((i ^. insInst ^. i1Platform) ==
---       Just Windows)) &&
---     -- vpc goes with vpc
---     (((r ^. split ^. resResv ^. ri1ProductDescription) `elem`
---       [Just RIPDLinuxUNIXAmazonVPC,Just RIPDWindowsAmazonVPC]) ==
---      isJust (i ^. insInst ^. i1VpcId)) &&
---     -- same region
---     (r ^. split ^. resEnv ^. env ^. envRegion) ==
---     (i ^. insEnv ^. env ^. envRegion) &&
---     -- and also would fit into this split arrangement
---     let iGroup =
---           find1ByType (i ^. insInst ^. i1InstanceType) ^. insGroup
---         rGroup =
---           fmap (view insGroup . find1ByType)
---                (r ^. split ^. resResv ^. ri1InstanceType)
--- -- FIXME capacityTotal or Used is broken
---         Just avail =
---           liftA2 (-)
---                  (capacityTotal r)
---                  (capacityUsed r)
---         factor =
---           find1ByType (i ^. insInst ^. i1InstanceType) ^. insFactor
---     in (Just iGroup == rGroup) &&
---        factor <= avail
---        -- case fmap (factor <=) avail of
---        --   Nothing -> False
---        --   Just _ -> True
-
--- instance Splittable AwsSplitUsedReserved AwsInstance where
---   splittable r i =
---     -- windows goes with windows
---     (((r ^. split ^. used ^. resResv ^. ri1ProductDescription) `elem`
---       [Just RIPDWindows,Just RIPDWindowsAmazonVPC]) ==
---      ((i ^. insInst ^. i1Platform) ==
---       Just Windows)) &&
---     -- vpc goes with vpc
---     (((r ^. split ^. used ^. resResv ^. ri1ProductDescription) `elem`
---       [Just RIPDLinuxUNIXAmazonVPC,Just RIPDWindowsAmazonVPC]) ==
---      isJust (i ^. insInst ^. i1VpcId)) &&
---     -- same region
---     (r ^. split ^. used ^. resEnv ^. env ^. envRegion) ==
---     (i ^. insEnv ^. env ^. envRegion) &&
---     -- and also would fit into this split arrangement
---     let iGroup =
---           find1ByType (i ^. insInst ^. i1InstanceType) ^.
---           insGroup
---         rGroup =
---           fmap (view insGroup . find1ByType)
---                (r ^. split ^. used ^. resResv ^. ri1InstanceType)
---         avail =
---           liftA2 (-)
---                  (capacityTotal r)
---                  (capacityUsed r)
---         factor =
---           find1ByType (i ^. insInst ^. i1InstanceType) ^.
---           insFactor
---     in (Just iGroup ==
---         rGroup) &&
---        case fmap (factor <=) avail of
---          Nothing -> False
---          Just _ -> True
-
--- instance Matchable AwsReserved AwsInstance where
---   matchable r i =
---     -- windows goes with windows
---     (((r ^. resResv ^. ri1ProductDescription) `elem`
---       [Just RIPDWindows,Just RIPDWindowsAmazonVPC]) ==
---      ((i ^. insInst ^. i1Platform) ==
---       Just Windows)) &&
---     -- vpc goes with vpc
---     (((r ^. resResv ^. ri1ProductDescription) `elem`
---       [Just RIPDLinuxUNIXAmazonVPC,Just RIPDWindowsAmazonVPC]) ==
---      isJust (i ^. insInst ^. i1VpcId)) &&
---     -- same instance type
---     (r ^. resResv ^. ri1InstanceType) ==
---     (i ^. insInst ^? i1InstanceType) &&
---     -- same availability zone
---     (r ^. resResv ^. ri1AvailabilityZone) ==
---     (i ^. insInst ^. i1Placement ^. pAvailabilityZone)
-
--- instance Matchable AwsUsedReserved AwsInstance where
---   matchable r i =
---     -- fits the regular criteria
---     matchable (r ^. used)
---               i &&
---     -- and also would fit this used reserved
---     fmap (length (r ^. usedBy) <)
---          (r ^. used ^. resResv ^. ri1InstanceCount) ==
---     Just True

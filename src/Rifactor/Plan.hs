@@ -153,7 +153,7 @@ transition = splitReserved . mergeReserved . matchReserved
 matchReserved :: AwsPlanTransition
 matchReserved =
   mergeInstances matchFn mergeFn
-  where matchFn m0 m1 = m0 `worksWith` m1 && m0 `hasCapacityFor` m1
+  where matchFn m0 m1 = m0 `appliesTo` m1 && m0 `hasCapacityFor` m1
         mergeFn r@Item{..} i = Used r [i]
         mergeFn u@Used{..} r@Item{..} = u & usedBy %~ (|> r)
 
@@ -162,7 +162,7 @@ matchReserved =
 splitReserved :: AwsPlanTransition
 splitReserved =
   mergeInstances matchFn mergeFn
-  where matchFn m0 m1 = m0 `couldWorkWith` m1 && m0 `hasCapacityFor` m1
+  where matchFn m0 m1 = m0 `couldSplit` m1 && m0 `hasCapacityFor` m1
         mergeFn r@Item{..} i = Split r [i]
         mergeFn s@Split{..} i = s & splitBy %~ (|> i)
 
