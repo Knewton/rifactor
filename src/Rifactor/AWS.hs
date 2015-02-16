@@ -1,4 +1,6 @@
 {-# LANGUAGE ExtendedDefaultRules #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
@@ -207,34 +209,43 @@ isMerge :: AwsPlan -> Bool
 isMerge Merge{..} = True
 isMerge _ = False
 
+foldEachInstanceWith :: forall e r i a b f0 f1.
+                        (Functor f0,Functor f1,Foldable f0,Foldable f1)
+                     => (Resource e r i -> a -> b -> b)
+                     -> b
+                     -> f0 (Resource e r i)
+                     -> f1 a
+                     -> b
 foldEachInstanceWith fn z p0 p1 = foldr f z p0
-  where f x@Instance{..} z = foldr (fn x) z p1
-        f _ z = z
+  where f x@Instance{..} z' = foldr (fn x) z' p1
+        f _ z' = z'
 
+foldEachReservedWith :: forall e r i a b f0 f1.
+                        (Functor f0,Functor f1,Foldable f0,Foldable f1)
+                     => (Resource e r i -> a -> b -> b)
+                     -> b
+                     -> f0 (Resource e r i)
+                     -> f1 a
+                     -> b
 foldEachReservedWith fn z p0 p1 = foldr f z p0
-  where f x@Reserved{..} z = foldr (fn x) z p1
-        f _ z = z
+  where f x@Reserved{..} z' = foldr (fn x) z' p1
+        f _ z' = z'
 
 appliesTo :: AwsPlan -> AwsPlan -> Bool
 appliesTo = foldEachReservedWith (\a b -> flip (&&) (isInstanceMatch a b)) True
 
-couldSplit :: AwsPlan -> AwsPlan -> Bool
-couldSplit = foldEachReservedWith (\r i -> flip (&&) (isSplittable r i)) True
+couldWorkWith :: AwsPlan -> AwsPlan -> Bool
+couldWorkWith = foldEachReservedWith (\r i -> flip (&&) (isSplittable r i)) True
 
 couldMerge :: AwsPlan -> AwsPlan -> Bool
 couldMerge = foldEachReservedWith (\r i -> flip (&&) (isMergeable r i)) True
 
 isInstanceMatch :: AwsResource -> AwsResource -> Bool
-isInstanceMatch (Reserved _ r) (Instance _ i) =
-  -- windows goes with windows
-  (((r ^. ri1ProductDescription) `elem`
-    [Just RIPDWindows,Just RIPDWindowsAmazonVPC]) ==
-   ((i ^. i1Platform) ==
-    Just Windows)) &&
-  -- vpc goes with vpc
-  (((r ^. ri1ProductDescription) `elem`
-    [Just RIPDLinuxUNIXAmazonVPC,Just RIPDWindowsAmazonVPC]) ==
-   isJust (i ^. i1VpcId)) &&
+isInstanceMatch rs@(Reserved _ r) is@(Instance _ i) =
+  sameGroup rs is &&
+  sameNetwork rs is &&
+  samePlatform rs is &&
+  sameRegion rs is &&
   -- same instance type
   (r ^. ri1InstanceType == i ^? i1InstanceType) &&
   -- same availability zone
@@ -242,56 +253,69 @@ isInstanceMatch (Reserved _ r) (Instance _ i) =
 isInstanceMatch _ _ = False
 
 isSplittable :: AwsResource -> AwsResource -> Bool
-isSplittable (Reserved er r) (Instance ei i) =
-  -- windows goes with windows
-  (((r ^. ri1ProductDescription) `elem`
-    [Just RIPDWindows,Just RIPDWindowsAmazonVPC]) ==
-   ((i ^. i1Platform) ==
-    Just Windows)) &&
-  -- vpc goes with vpc
-  (((r ^. ri1ProductDescription) `elem`
-    [Just RIPDLinuxUNIXAmazonVPC,Just RIPDWindowsAmazonVPC]) ==
-   isJust (i ^. i1VpcId)) &&
-  -- same region
-  (er ^. eEnv ^. envRegion) ==
-  (ei ^. eEnv ^. envRegion)
---     -- and also would fit into this split arrangement
---     let iGroup =
---           find1ByType (i ^. insInst ^. i1InstanceType) ^.
---           insGroup
---         rGroup =
---           fmap (view insGroup . find1ByType)
---                (r ^. split ^. used ^. resResv ^. ri1InstanceType)
---         avail =
---           liftA2 (-)
---                  (capacityTotal r)
---                  (capacityUsed r)
---         factor =
---           find1ByType (i ^. insInst ^. i1InstanceType) ^.
---           insFactor
---     in (Just iGroup ==
---         rGroup) &&
---        case fmap (factor <=) avail of
---          Nothing -> False
---          Just _ -> True
+isSplittable rs@(Reserved _ _) is@(Instance _ _) =
+  sameGroup rs is &&
+  sameNetwork rs is &&
+  samePlatform rs is &&
+  sameRegion rs is
 isSplittable _ _ = False
 
 isMergeable :: AwsResource -> AwsResource -> Bool
-isMergeable (Reserved e0 r0) (Reserved e1 r1) =
+isMergeable rs0@(Reserved _ r0) rs1@(Reserved _ r1) =
+  sameGroup rs0 rs1 &&
+  sameNetwork rs0 rs1 &&
+  samePlatform rs0 rs1 &&
+  sameRegion rs0 rs1 &&
   -- not the same reserved instances
   (r0 ^. ri1ReservedInstancesId /= r1 ^. ri1ReservedInstancesId) &&
   -- but still the same end date
   (r0 ^. ri1End == r1 ^. ri1End) &&
-  -- and the same instance type group (C1, M3, etc)
+  -- and the same offering type
+  (r0 ^. ri1OfferingType == r1 ^. ri1OfferingType)
+isMergeable _ _ = False
+
+sameRegion :: AwsResource -> AwsResource -> Bool
+sameRegion a b =
+  (a ^. rEnv ^. eEnv ^. envRegion) ==
+  (b ^. rEnv ^. eEnv ^. envRegion)
+
+sameGroup :: AwsResource -> AwsResource -> Bool
+sameGroup (Reserved _ r0) (Reserved _ r1) =
   (find1ByType (r0 ^. ri1InstanceType ^?! _Just) ^.
    insGroup ==
    find1ByType (r1 ^. ri1InstanceType ^?! _Just) ^.
-   insGroup) &&
-  -- and the same offering type
-  (r0 ^. ri1OfferingType == r1 ^. ri1OfferingType) &&
-  -- and the same region
-  (e0 ^. eEnv ^. envRegion == e1 ^. eEnv ^. envRegion)
-isMergeable _ _ = False
+   insGroup)
+sameGroup (Reserved _ r) (Instance _ i) =
+  fmap (view insGroup . find1ByType)
+       (r ^. ri1InstanceType) ==
+  Just (find1ByType (i ^. i1InstanceType) ^.
+        insGroup)
+sameGroup a@Instance{..} b = sameGroup b a
+
+sameNetwork :: AwsResource -> AwsResource -> Bool
+sameNetwork (Reserved _ r0) (Reserved _ r1) =
+  (((r0 ^. ri1ProductDescription) `elem`
+    [Just RIPDLinuxUNIXAmazonVPC,Just RIPDWindowsAmazonVPC]) ==
+   (r1 ^. ri1ProductDescription) `elem`
+    [Just RIPDLinuxUNIXAmazonVPC,Just RIPDWindowsAmazonVPC])
+sameNetwork (Reserved _ r) (Instance _ i) =
+  (((r ^. ri1ProductDescription) `elem`
+    [Just RIPDLinuxUNIXAmazonVPC,Just RIPDWindowsAmazonVPC]) ==
+   isJust (i ^. i1VpcId))
+sameNetwork a@Instance{..} b = sameNetwork b a
+
+samePlatform :: AwsResource -> AwsResource -> Bool
+samePlatform (Reserved _ r0) (Reserved _ r1) =
+  (((r0 ^. ri1ProductDescription) `elem`
+    [Just RIPDWindows,Just RIPDWindowsAmazonVPC]) ==
+   ((r1 ^. ri1ProductDescription) `elem`
+    [Just RIPDWindows,Just RIPDWindowsAmazonVPC]))
+samePlatform (Reserved _ r) (Instance _ i) =
+  (((r ^. ri1ProductDescription) `elem`
+    [Just RIPDWindows,Just RIPDWindowsAmazonVPC]) ==
+   ((i ^. i1Platform) ==
+    Just Windows))
+samePlatform a@Instance{..} b = samePlatform b a
 
 {- EC2 Instance Type/Group/Factor Table & Lookup -}
 

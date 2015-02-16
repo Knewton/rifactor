@@ -31,8 +31,8 @@ data Env a =
 data Resource e r i
   = Reserved {_rEnv :: Env e
              ,_rReserved :: r}
-  | Instance {_iEnv :: Env e
-             ,_iInstance :: i}
+  | Instance {_rEnv :: Env e
+             ,_rInstance :: i}
   deriving (Eq,Foldable,Functor,Show,Traversable)
 
 data Plan a
@@ -43,7 +43,6 @@ data Plan a
   | Merge {_merged :: [Plan a]}
   | Split {_split :: Plan a
           ,_splitBy :: [Plan a]}
-  | Full {_full :: Plan a}
   | Plans {_plans :: [Plan a]}
   deriving (Eq,Foldable,Functor,Show,Traversable)
 

@@ -153,19 +153,21 @@ transition = splitReserved . mergeReserved . matchReserved
 matchReserved :: AwsPlanTransition
 matchReserved =
   mergeInstances matchFn mergeFn
-  where matchFn r i = r `appliesTo` i && r `hasCapacityFor` i
-        mergeFn r@Item{..} i = Used r [i]
-        mergeFn u@Used{..} i = u & usedBy %~ (|> i)
+  where matchFn a b = a `appliesTo` b && a `hasCapacityFor` b
+        mergeFn a@Item{..} b = Used a [b]
+        mergeFn u@Used{..} b = u & usedBy %~ (|> b)
+        mergeFn a b = Plans [a,b] -- NOT NEEDED BUT LESS WARNINGS
 
 -- | Match Reserved with Instances in the same offering type, network
 -- type & region.
 splitReserved :: AwsPlanTransition
 splitReserved =
   mergeInstances matchFn mergeFn
-  where matchFn r i = r `couldSplit` i && r `hasCapacityFor` i
-        mergeFn r@Item{..} i = Split r [i]
-        mergeFn r@Used{..} i = Split r [i]
-        mergeFn s@Split{..} i = s & splitBy %~ (|> i)
+  where matchFn a b = a `couldWorkWith` b && a `hasCapacityFor` b
+        mergeFn a@Item{..} b = Split a [b]
+        mergeFn a@Used{..} b = Split a [b]
+        mergeFn a@Split{..} b = a & splitBy %~ (|> b)
+        mergeFn a b = Plans [a,b] -- NOT NEEDED BUT LESS WARNINGS
 
 -- | Of the Reserved Instances that aren't currently being used,
 -- merge RIs where conditions permit (see Amazon specs).
@@ -187,8 +189,9 @@ mergeReserved (Plans ps) =
                       (x,[])
                       xs
           in go xs' (z : zs)
-        mergeFn r0@Item{..} r1 = Merge [r0,r1]
-        mergeFn m@Merge{..} r = m & merged %~ (|> r)
+        mergeFn a@Item{..} b = Merge [a,b]
+        mergeFn a@Merge{..} b = a & merged %~ (|> b)
+        mergeFn a b = Plans [a,b] -- NOT NEEDED BUT LESS WARNINGS
 mergeReserved p = p
 
 -- | This function is an abstraction. We repeatedly need to take a
