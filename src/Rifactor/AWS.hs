@@ -199,6 +199,10 @@ isUsed :: AwsPlan -> Bool
 isUsed Used{..} = True
 isUsed _ = False
 
+isSplit :: AwsPlan -> Bool
+isSplit Split{..} = True
+isSplit _ = False
+
 isMerge :: AwsPlan -> Bool
 isMerge Merge{..} = True
 isMerge _ = False

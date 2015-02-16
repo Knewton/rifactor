@@ -164,6 +164,7 @@ splitReserved =
   mergeInstances matchFn mergeFn
   where matchFn r i = r `couldSplit` i && r `hasCapacityFor` i
         mergeFn r@Item{..} i = Split r [i]
+        mergeFn r@Used{..} i = Split r [i]
         mergeFn s@Split{..} i = s & splitBy %~ (|> i)
 
 -- | Of the Reserved Instances that aren't currently being used,
