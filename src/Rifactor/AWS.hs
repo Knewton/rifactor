@@ -411,6 +411,6 @@ matchingResource (Instance _ i0) (Instance _ i1) =
   (i0 ^. i1VpcId == i1 ^. i1VpcId) &&
   (i0 ^. i1InstanceType == i1 ^. i1InstanceType) &&
   (i0 ^. i1Platform == i1 ^. i1Platform) &&
-  (i0 ^. i1Placement ^. pAvailabilityZone == i1 ^. i1Placement ^.
-                                             pAvailabilityZone)
+  (i0 ^. i1Placement ^. pAvailabilityZone) ==
+  (i1 ^. i1Placement ^. pAvailabilityZone)
 matchingResource _ _ = False
