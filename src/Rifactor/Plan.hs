@@ -120,7 +120,7 @@ exec opts =
 --                      (sortBy comparingReserved (m ^. reserved)))
 --   in traverse_ print (sort (concat [instanceGroups,reservedGroups]))
 
--- printChangesPlanned :: Plan -> IO ()
+-- printChangesPlanned :: AwsPlan -> IO ()
 -- printChangesPlanned m =
 --   do traverse_ (putStrLn . T.unpack . summary)
 --                (filter (not . null . view reNewInstances)
@@ -153,48 +153,42 @@ transition = splitReserved . mergeReserved . matchReserved
 matchReserved :: AwsPlanTransition
 matchReserved =
   mergeInstances matchFn mergeFn
-  where matchFn m0 m1 = m0 `appliesTo` m1 && m0 `hasCapacityFor` m1
+  where matchFn r i = r `appliesTo` i && r `hasCapacityFor` i
         mergeFn r@Item{..} i = Used r [i]
-        mergeFn u@Used{..} r@Item{..} = u & usedBy %~ (|> r)
+        mergeFn u@Used{..} i = u & usedBy %~ (|> i)
 
 -- | Match Reserved with Instances in the same offering type, network
 -- type & region.
 splitReserved :: AwsPlanTransition
 splitReserved =
   mergeInstances matchFn mergeFn
-  where matchFn m0 m1 = m0 `couldSplit` m1 && m0 `hasCapacityFor` m1
+  where matchFn r i = r `couldSplit` i && r `hasCapacityFor` i
         mergeFn r@Item{..} i = Split r [i]
         mergeFn s@Split{..} i = s & splitBy %~ (|> i)
 
 -- | Of the Reserved Instances that aren't currently being used,
 -- merge RIs where conditions permit (see Amazon specs).
 mergeReserved :: AwsPlanTransition
-mergeReserved = undefined -- TODO WRITE THIS!
-
--- let (reserves,rest) = (Item (Reserved))
--- foldr over those returning (r,rejects)
-
--- mergeReserved (Plan os rs cs) =
---   go (groupBy matches rs) [] cs
---   where go [] rs' cs' = Plan os rs' cs'
---         go (g:gs) rs' cs' =
---           if length g > 1
---              then go gs rs' (cons (Merge g) cs')
---              else go gs (g ++ rs') cs'
---         matches r0 r1
---           | isNothing (r0 ^. reReserved ^. ri1InstanceType) ||
---               isNothing (r1 ^. reReserved ^. ri1InstanceType) = False
---         matches (Reserved _ er0 r0 [] _) (Reserved _ er1 r1 [] _) =
---           -- same end date
---           (r0 ^. ri1End == r1 ^. ri1End) &&
---           -- same instance type group (C1, M3, etc)
---           (instanceTypeDetails (r0 ^. ri1InstanceType ^?! _Just) ==
---            instanceTypeDetails (r1 ^. ri1InstanceType ^?! _Just)) &&
---           -- -- same offering type
---           (r0 ^. ri1OfferingType == r1 ^. ri1OfferingType) &&
---           -- same region
---           (er0 ^. envRegion == er1 ^. envRegion)
---         matches _ _ = False
+mergeReserved (Plans ps) =
+  let (rs,rest) =
+        partition (\x ->
+                     isReserved x &&
+                     (isItem x || isMerge x))
+                  ps
+  in go rs rest
+  where go [] zs = Plans zs
+        go (x:xs) zs =
+          let (z,xs') =
+                foldr (\r' (r,rs) ->
+                         if (couldMerge r r')
+                            then (mergeFn r r',rs)
+                            else (r,r' : rs))
+                      (x,[])
+                      xs
+          in go xs' (z : zs)
+        mergeFn r0@Item{..} r1 = Merge [r0,r1]
+        mergeFn m@Merge{..} r = m & merged %~ (|> r)
+mergeReserved p = p
 
 -- | This function is an abstraction. We repeatedly need to take a
 -- Reserved that we know little about & associate Instance instances
@@ -208,31 +202,24 @@ mergeReserved = undefined -- TODO WRITE THIS!
 --
 -- This is repeated for every Reserved in the Plan. At the end of the
 -- recursion you are left with a new version of the Plan.
--- mergeInstances :: (AwsPlan -> AwsPlan -> Bool)
---                -> (AwsPlan -> AwsPlan -> AwsPlan)
---                -> AwsPlanTransition
-mergeInstances matchFn mergeFn m = undefined
-  -- go os rs []
-  -- where go [] ys zs = Plan [] (ys ++ zs) cs
-  --       go xs [] zs = Plan xs zs cs
-  --       go xs (y:ys) zs =
-  --         -- do we have any instances that match this reserved?
-  --         case partition (matchFn y) xs of
-  --           ([],_) -> go xs ys (y : zs)
-  --           (hits,misses) ->
-  --             -- fold instances that fit left into the reserved
-  --             let (result,rejects) =
-  --                   foldl (\(r,rejected) o ->
-  --                            if (isInstanceTypeMatch r o)
-  --                               then (mergeFn r o,rejected)
-  --                               else (r,o : rejected))
-  --                         (y,[])
-  --                         hits
-  --             in
-  --                -- then on to the next reserved
-  --                go (misses ++ rejects)
-  --                   ys
-  --                   (result : zs)
+mergeInstances :: (AwsPlan -> AwsPlan -> Bool)
+               -> (AwsPlan -> AwsPlan -> AwsPlan)
+               -> AwsPlanTransition
+mergeInstances matchFn mergeFn (Plans ps) =
+  let (rs,is) = partition isReserved ps
+  in go rs is []
+  where go [] ys zs = Plans (ys ++ zs)
+        go xs [] zs = Plans (xs ++ zs)
+        go (x:xs) ys zs =
+          let (z,ys') =
+                foldr (\i (r,is) ->
+                         if (matchFn r i)
+                            then (mergeFn r i,is)
+                            else (r,i : is))
+                      (x,[])
+                      ys
+          in go xs ys' (z : zs)
+mergeInstances _ _ p = p
 
 -- doUpdateReserved :: Reserved
 --                  -> IO (Either Error ModifyReservedInstancesResponse)
@@ -293,34 +280,3 @@ mergeInstances matchFn mergeFn m = undefined
 --                   -> IO (Either Error ModifyReservedInstancesResponse)
 -- doMergeReserved = undefined
 -- -- TODO calculate the match between two different sized reserved
-
--- comparingReserved :: Reserved -> Reserved -> Ordering
--- comparingReserved (Reserved a0 _ r0 _ _) (Reserved a1 _ r1 _ _) =
---   comparing id a0 a1 <>
---   comparing (view ri1InstanceType) r0 r1 <>
---   comparing (view ri1OfferingType) r0 r1 <>
---   comparing (view ri1AvailabilityZone) r0 r1 <>
---   comparing (view ri1ProductDescription) r0 r1
-
--- matchingReserved :: Reserved -> Reserved -> Bool
--- matchingReserved (Reserved a0 _ r0 _ _) (Reserved a1 _ r1 _ _) =
---   (a0 == a1) &&
---   (r0 ^. ri1InstanceType == r1 ^. ri1InstanceType) &&
---   (r0 ^. ri1OfferingType == r1 ^. ri1OfferingType) &&
---   (r0 ^. ri1AvailabilityZone == r1 ^. ri1AvailabilityZone) &&
---   (r0 ^. ri1ProductDescription == r1 ^. ri1ProductDescription)
-
--- comparingInstance :: Instance -> Instance -> Ordering
--- comparingInstance (Instance _ _ i0) (Instance _ _ i1) =
---   comparing (view i1VpcId) i0 i1 <>
---   comparing (view i1InstanceType) i0 i1 <>
---   comparing (view i1Platform) i0 i1 <>
---   comparing (view pAvailabilityZone . view i1Placement) i0 i1
-
--- matchingInstance :: Instance -> Instance -> Bool
--- matchingInstance (Instance _ _ i0) (Instance _ _ i1) =
---   (i0 ^. i1VpcId == i1 ^. i1VpcId) &&
---   (i0 ^. i1InstanceType == i1 ^. i1InstanceType) &&
---   (i0 ^. i1Platform == i1 ^. i1Platform) &&
---   (i0 ^. i1Placement ^. pAvailabilityZone == i1 ^. i1Placement ^.
---                                              pAvailabilityZone)

@@ -42,7 +42,7 @@ main = tests >>= defaultMain
 
 tests :: IO TestTree
 tests =
-  sequence [] >>=
+  sequence [mergeSpec] >>=
   pure .
   testGroup "Tests"
 
@@ -173,51 +173,51 @@ tests =
 --      --             20
 --      --           cs' `shouldBe` empty
 
--- combineSpec :: IO TestTree
--- combineSpec =
---   testSpec "Combining Reserved Instances" $
---   do describe "2x10 reserved (m2.4xlarge/us-east-1a)" $
---        context "and 0 instances (m2.4xlarge/us-east-1)" $
---        it "will combine reserved instances purchased at the same time" $
---        example $
---        do (r0:r1:[]) <-
---             mkReserved 2 "us-east-1a" 10 M2_4XLarge
---           combineable r0 r1 `shouldBe` True
---           merge r0 r1 `shouldBe` Just (Combine [r0,r1])
---           let m =
---                 combineReserved (mkAwsModel [] [r0,r1])
---           (m ^. resvs) `shouldBe` empty
---           (m ^. insts) `shouldBe` empty
---           length (m ^. combineResvs) `shouldBe` 1
---           traverse_ (\c -> length c `shouldBe` 2)
---             (m ^. combineResvs ^.. traverse . combine)
---      describe "1x10 reserved (m2.4xlarge/us-east-1a)" $
---        context "and another purchased later (m2.4xlarge/us-east-1a)" $
---        it "will NOT combine reserved instances purchased at different times" $
---        example $
---        do rs0 <-
---             mkReserved 2 "us-east-1a" 10 M2_4XLarge
---           rs1 <-
---             mkReserved 2 "us-east-1a" 10 M2_4XLarge
---           today <- getCurrentTime
---           let tomorrow = today { utctDay = addDays 1 (utctDay today) }
---               aYearFromTomorrow = today { utctDay = addDays 366 (utctDay tomorrow) }
---           let rs1' = map (\r -> r & (resResv %~ ri1Start ?~ tomorrow)
---                                   & (resResv %~ ri1End ?~ aYearFromTomorrow)) rs1
---           let m =
---                 combineReserved (mkAwsModel [] (rs0++rs1'))
---           (m ^. resvs) `shouldBe` empty
---           (m ^. insts) `shouldBe` empty
---           length (m ^. combineResvs) `shouldBe` 2
---           traverse_ (\c -> length c `shouldBe` 2)
---             (m ^. combineResvs ^.. traverse . combine)
+mergeSpec :: IO TestTree
+mergeSpec =
+  testSpec "Merging Reserved Instances" $
+  do describe "2x10 reserved (m2.4xlarge/us-east-1a)" $
+       context "and 0 instances (m2.4xlarge/us-east-1)" $
+       it "will combine reserved instances purchased at the same time" $
+       example $
+       do rs <- mkReserved 2 "us-east-1a" 10 M2_4XLarge
+          let items = map Item rs
+              result = mergeReserved (Plans items)
+          result `shouldBe` Plans [Merge items]
+     -- describe "1x10 reserved (m2.4xlarge/us-east-1a)" $
+     --   context "and another purchased later (m2.4xlarge/us-east-1a)" $
+     --   it "will NOT merge reserved instances purchased at different times" $
+     --   example $
+     --   do rs0 <-
+     --        mkReserved 2 "us-east-1a" 10 M2_4XLarge
+     --      rs1 <-
+     --        mkReserved 2 "us-east-1a" 10 M2_4XLarge
+     --      today <- getCurrentTime
+     --      let oldReserved = map Item rs0
+     --          tomorrow =
+     --            today {utctDay =
+     --                     addDays 1 (utctDay today)}
+     --          aYearFromTomorrow =
+     --            today {utctDay =
+     --                     addDays 366 (utctDay tomorrow)}
+     --          rs1' =
+     --            map (\r ->
+     --                   r &
+     --                   (rReserved %~ ri1Start ?~ tomorrow) &
+     --                   (rReserved %~ ri1End ?~ aYearFromTomorrow))
+     --                rs1
+     --          newReserved = map Item rs1'
+     --          result =
+     --            mergeReserved (Plans (oldReserved ++ newReserved))
+     --      result `shouldBe`
+     --        Plans [Merge oldReserved,Merge newReserved]
 
 mkReserved :: Int -> Text -> Int -> EC2.InstanceType -> IO [AwsResource]
 mkReserved rCount az iCount itype =
   do time <- getCurrentTime
      e <- noKeysEnv
-     pure (map (\_ ->
-                  Reserved e (riFixture iCount az itype time))
+     pure (map (\rid ->
+                  Reserved e (riFixture iCount az itype time (toText rid)))
                ([1 .. rCount] :: [Int]))
 
 mkInstances :: Int -> Text -> EC2.InstanceType -> IO [AwsResource]
@@ -227,9 +227,15 @@ mkInstances iCount az itype =
      mapM (pure . Instance e . iFixture az itype time . T.pack . show)
           ([1 .. iCount] :: [Int])
 
-riFixture :: Int -> Text -> EC2.InstanceType -> UTCTime -> EC2.ReservedInstances
-riFixture count az itype time =
+riFixture :: Int
+          -> Text
+          -> EC2.InstanceType
+          -> UTCTime
+          -> Text
+          -> EC2.ReservedInstances
+riFixture count az itype time rid =
   reservedInstances &
+  (ri1ReservedInstancesId ?~ rid) &
   (ri1AvailabilityZone ?~ az) &
   (ri1InstanceCount ?~ count) &
   (ri1InstanceType ?~ itype) &

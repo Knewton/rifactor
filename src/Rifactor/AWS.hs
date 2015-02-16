@@ -113,19 +113,19 @@ fetchReserved =
 
 typeSet :: AwsPlan -> Set InstanceType
 typeSet = foldr f Set.empty
-  where f (Reserved _ _) b = b
-        f (Instance _ i) b =
+  where f (Reserved _ _) z = z
+        f (Instance _ i) z =
           Set.insert (i ^. i1InstanceType)
-                     b
+                     z
 
 regionSet  :: AwsPlan -> Set Region
 regionSet = foldr f Set.empty
-  where f (Reserved e _) b =
+  where f (Reserved e _) z =
           Set.insert (e ^. eEnv ^. envRegion)
-                     b
-        f (Instance e _) b =
+                     z
+        f (Instance e _) z =
           Set.insert (e ^. eEnv ^. envRegion)
-                     b
+                     z
 
 zoneSet  :: AwsPlan -> Set Text
 zoneSet =
@@ -133,42 +133,42 @@ zoneSet =
   catMaybes .
   toList .
   foldr f Set.empty
-  where f (Reserved _ r) b =
+  where f (Reserved _ r) z =
           Set.insert (r ^. ri1AvailabilityZone)
-                     b
-        f (Instance _ i) b =
+                     z
+        f (Instance _ i) z =
           Set.insert (i ^. i1Placement ^. pAvailabilityZone)
-                     b
+                     z
 
 instanceNormFactor :: AwsPlan -> Float
 instanceNormFactor = foldr f 0
-  where f (Instance _ i) b =
-          b +
+  where f (Instance _ i) z =
+          z +
           find1ByType (i ^. i1InstanceType) ^.
           insFactor
-        f _ b = b
+        f _ z = z
 
 rInstanceNormFactor :: AwsPlan -> Maybe Float
 rInstanceNormFactor = foldr f (Just 0)
-  where f (Reserved _ r) b =
+  where f (Reserved _ r) z =
           liftA2 (+)
-                 b
+                 z
                  (liftA2 (*)
                          (fmap realToFrac (r ^. ri1InstanceCount))
                          (fmap (view insFactor)
                                (fmap find1ByType (r ^. ri1InstanceType))))
-        f _ b = b
+        f _ z = z
 
 instanceCount :: AwsPlan -> Int
 instanceCount m = foldr f 0 m
-  where f (Instance _ _) b = b + 1
-        f _ b = b
+  where f (Instance _ _) z = z + 1
+        f _ z = z
 
 rInstanceCount :: AwsPlan -> Maybe Int
 rInstanceCount m = foldr f (Just 0) m
-  where f (Reserved _ r) b =
-          liftA2 (+) (r ^. ri1InstanceCount) b
-        f _ b = b
+  where f (Reserved _ r) z =
+          liftA2 (+) (r ^. ri1InstanceCount) z
+        f _ z = z
 
 availableNormFactor :: AwsPlan -> Maybe Float
 availableNormFactor p =
@@ -183,36 +183,45 @@ hasCapacityFor p0 p1 =
        Just val -> val >= 0
        Nothing -> False
 
-isInstance :: AwsPlan -> Bool
-isInstance = foldr f True
-  where f Instance{..} b = b && True
-        f _ _ = False
-
 isReserved :: AwsPlan -> Bool
-isReserved = foldr f True
-  where f Reserved{..} b = b && True
-        f _ _ = False
+isReserved = foldr f False
+  where f Reserved{..} _ = True
+        f _ z = z
 
-foldEachInstanceWith fn b p0 p1 = foldr f b p0
+isInstance :: AwsPlan -> Bool
+isInstance = not . isReserved
+
+isItem :: AwsPlan -> Bool
+isItem Item{..} = True
+isItem _ = False
+
+isUsed :: AwsPlan -> Bool
+isUsed Used{..} = True
+isUsed _ = False
+
+isMerge :: AwsPlan -> Bool
+isMerge Merge{..} = True
+isMerge _ = False
+
+foldEachInstanceWith fn z p0 p1 = foldr f z p0
   where f x@Instance{..} z = foldr (fn x) z p1
         f _ z = z
 
-foldEachReservedWith fn b p0 p1 = foldr f b p0
+foldEachReservedWith fn z p0 p1 = foldr f z p0
   where f x@Reserved{..} z = foldr (fn x) z p1
         f _ z = z
 
 appliesTo :: AwsPlan -> AwsPlan -> Bool
-appliesTo = foldEachReservedWith isInstanceMatch True
+appliesTo = foldEachReservedWith (\a b -> flip (&&) (isInstanceMatch a b)) True
 
 couldSplit :: AwsPlan -> AwsPlan -> Bool
-couldSplit = foldEachReservedWith isSplittable True
+couldSplit = foldEachReservedWith (\r i -> flip (&&) (isSplittable r i)) True
 
-couldCombine :: AwsPlan -> AwsPlan -> Bool
-couldCombine = foldEachReservedWith isCombineable True
+couldMerge :: AwsPlan -> AwsPlan -> Bool
+couldMerge = foldEachReservedWith (\r i -> flip (&&) (isMergeable r i)) True
 
-isInstanceMatch :: AwsResource -> AwsResource -> Bool -> Bool
-isInstanceMatch (Reserved _ r) (Instance _ i) acc =
-  acc &&
+isInstanceMatch :: AwsResource -> AwsResource -> Bool
+isInstanceMatch (Reserved _ r) (Instance _ i) =
   -- windows goes with windows
   (((r ^. ri1ProductDescription) `elem`
     [Just RIPDWindows,Just RIPDWindowsAmazonVPC]) ==
@@ -226,11 +235,10 @@ isInstanceMatch (Reserved _ r) (Instance _ i) acc =
   (r ^. ri1InstanceType == i ^? i1InstanceType) &&
   -- same availability zone
   (r ^. ri1AvailabilityZone == i ^. i1Placement ^. pAvailabilityZone)
-isInstanceMatch _ _ _ = False
+isInstanceMatch _ _ = False
 
-isSplittable :: AwsResource -> AwsResource -> Bool -> Bool
-isSplittable (Reserved er r) (Instance ei i) acc =
-  acc &&
+isSplittable :: AwsResource -> AwsResource -> Bool
+isSplittable (Reserved er r) (Instance ei i) =
   -- windows goes with windows
   (((r ^. ri1ProductDescription) `elem`
     [Just RIPDWindows,Just RIPDWindowsAmazonVPC]) ==
@@ -262,11 +270,10 @@ isSplittable (Reserved er r) (Instance ei i) acc =
 --        case fmap (factor <=) avail of
 --          Nothing -> False
 --          Just _ -> True
-isSplittable _ _ _ = False
+isSplittable _ _ = False
 
-isCombineable :: AwsResource -> AwsResource -> Bool -> Bool
-isCombineable (Reserved e0 r0) (Reserved e1 r1) acc =
-  acc &&
+isMergeable :: AwsResource -> AwsResource -> Bool
+isMergeable (Reserved e0 r0) (Reserved e1 r1) =
   -- not the same reserved instances
   (r0 ^. ri1ReservedInstancesId /= r1 ^. ri1ReservedInstancesId) &&
   -- but still the same end date
@@ -280,7 +287,7 @@ isCombineable (Reserved e0 r0) (Reserved e1 r1) acc =
   (r0 ^. ri1OfferingType == r1 ^. ri1OfferingType) &&
   -- and the same region
   (e0 ^. eEnv ^. envRegion == e1 ^. eEnv ^. envRegion)
-isCombineable _ _ _ = False
+isMergeable _ _ = False
 
 {- EC2 Instance Type/Group/Factor Table & Lookup -}
 
@@ -351,3 +358,31 @@ normFactor XLarge   = 8
 normFactor XLarge2X = 16
 normFactor XLarge4X = 32
 normFactor XLarge8X = 64
+
+comparingResource :: AwsResource -> AwsResource -> Ordering
+comparingResource (Reserved _ r0) (Reserved _ r1) =
+  comparing (view ri1InstanceType) r0 r1 <>
+  comparing (view ri1OfferingType) r0 r1 <>
+  comparing (view ri1AvailabilityZone) r0 r1 <>
+  comparing (view ri1ProductDescription) r0 r1
+comparingResource (Instance _ i0) (Instance _ i1) =
+  comparing (view i1VpcId) i0 i1 <>
+  comparing (view i1InstanceType) i0 i1 <>
+  comparing (view i1Platform) i0 i1 <>
+  comparing (view pAvailabilityZone . view i1Placement) i0 i1
+comparingResource _ (Instance _ _) = GT
+comparingResource (Instance _ _) _ = LT
+
+matchingResource :: AwsResource -> AwsResource -> Bool
+matchingResource (Reserved _ r0) (Reserved _ r1) =
+  (r0 ^. ri1InstanceType == r1 ^. ri1InstanceType) &&
+  (r0 ^. ri1OfferingType == r1 ^. ri1OfferingType) &&
+  (r0 ^. ri1AvailabilityZone == r1 ^. ri1AvailabilityZone) &&
+  (r0 ^. ri1ProductDescription == r1 ^. ri1ProductDescription)
+matchingResource (Instance _ i0) (Instance _ i1) =
+  (i0 ^. i1VpcId == i1 ^. i1VpcId) &&
+  (i0 ^. i1InstanceType == i1 ^. i1InstanceType) &&
+  (i0 ^. i1Platform == i1 ^. i1Platform) &&
+  (i0 ^. i1Placement ^. pAvailabilityZone == i1 ^. i1Placement ^.
+                                             pAvailabilityZone)
+matchingResource _ _ = False
