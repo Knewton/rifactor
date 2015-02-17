@@ -4,7 +4,7 @@
 
 [[https://travis-ci.org/Knewton/rifactor.png]]
 
-* AWS Reserved Instance Optimization
+* Automatically refactor AWS Reserved Instances to match running Instances
 
   Companies purchase Amazon AWS Reserved Instances as a way to cut
   cost on their Instances.  When you first purchase blocks of reserved
