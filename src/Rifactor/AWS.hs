@@ -259,6 +259,7 @@ isSplittable _ _ = False
 
 isMergeable :: AwsResource -> AwsResource -> Bool
 isMergeable a@(Reserved _ r0) b@(Reserved _ r1) =
+  sameAccount a b &&
   sameGroup a b &&
   sameNetwork a b &&
   samePlatform a b &&
@@ -270,6 +271,9 @@ isMergeable a@(Reserved _ r0) b@(Reserved _ r1) =
   -- and the same offering type
   (r0 ^. ri1OfferingType == r1 ^. ri1OfferingType)
 isMergeable _ _ = False
+
+sameAccount :: AwsResource -> AwsResource -> Bool
+sameAccount a b = a ^. rEnv ^. eName == b ^. rEnv ^. eName
 
 sameRegion :: AwsResource -> AwsResource -> Bool
 sameRegion a b =
