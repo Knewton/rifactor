@@ -241,15 +241,12 @@ couldMerge :: AwsPlan -> AwsPlan -> Bool
 couldMerge = foldEachReservedWith (\r i -> flip (&&) (isMergeable r i)) True
 
 isInstanceMatch :: AwsResource -> AwsResource -> Bool
-isInstanceMatch rs@(Reserved _ r) is@(Instance _ i) =
+isInstanceMatch rs@(Reserved _ _) is@(Instance _ _) =
+  sameAvailabilityZone rs is &&
   sameGroup rs is &&
+  sameInstanceType rs is &&
   sameNetwork rs is &&
-  samePlatform rs is &&
-  sameRegion rs is &&
-  -- same instance type
-  (r ^. ri1InstanceType == i ^? i1InstanceType) &&
-  -- same availability zone
-  (r ^. ri1AvailabilityZone == i ^. i1Placement ^. pAvailabilityZone)
+  samePlatform rs is
 isInstanceMatch _ _ = False
 
 isSplittable :: AwsResource -> AwsResource -> Bool
@@ -261,11 +258,11 @@ isSplittable rs@(Reserved _ _) is@(Instance _ _) =
 isSplittable _ _ = False
 
 isMergeable :: AwsResource -> AwsResource -> Bool
-isMergeable rs0@(Reserved _ r0) rs1@(Reserved _ r1) =
-  sameGroup rs0 rs1 &&
-  sameNetwork rs0 rs1 &&
-  samePlatform rs0 rs1 &&
-  sameRegion rs0 rs1 &&
+isMergeable a@(Reserved _ r0) b@(Reserved _ r1) =
+  sameGroup a b &&
+  sameNetwork a b &&
+  samePlatform a b &&
+  sameRegion a b &&
   -- not the same reserved instances
   (r0 ^. ri1ReservedInstancesId /= r1 ^. ri1ReservedInstancesId) &&
   -- but still the same end date
@@ -276,8 +273,24 @@ isMergeable _ _ = False
 
 sameRegion :: AwsResource -> AwsResource -> Bool
 sameRegion a b =
-  (a ^. rEnv ^. eEnv ^. envRegion) ==
-  (b ^. rEnv ^. eEnv ^. envRegion)
+  (a ^. rEnv ^. eEnv ^. envRegion == b ^. rEnv ^. eEnv ^. envRegion)
+
+sameInstanceType :: AwsResource -> AwsResource -> Bool
+sameInstanceType (Reserved _ r) (Instance _ i)=
+  (r ^. ri1InstanceType == i ^? i1InstanceType)
+sameInstanceType (Reserved _ r0) (Reserved _ r1)=
+  (r0 ^. ri1InstanceType == r1 ^. ri1InstanceType)
+sameInstanceType a@Instance{..} b = sameInstanceType b a
+
+sameAvailabilityZone :: AwsResource -> AwsResource -> Bool
+sameAvailabilityZone (Reserved _ r) (Instance _ i) =
+  (r ^. ri1AvailabilityZone == i ^. i1Placement ^. pAvailabilityZone)
+sameAvailabilityZone (Reserved _ r0) (Reserved _ r1)=
+  (r0 ^. ri1AvailabilityZone == r1 ^. ri1AvailabilityZone)
+sameAvailabilityZone (Instance _ i0) (Instance _ i1) =
+  (i0 ^. i1Placement ^. pAvailabilityZone) ==
+  (i1 ^. i1Placement ^. pAvailabilityZone)
+sameAvailabilityZone a@Instance{..} b = sameAvailabilityZone b a
 
 sameGroup :: AwsResource -> AwsResource -> Bool
 sameGroup (Reserved _ r0) (Reserved _ r1) =
@@ -302,6 +315,8 @@ sameNetwork (Reserved _ r) (Instance _ i) =
   (((r ^. ri1ProductDescription) `elem`
     [Just RIPDLinuxUNIXAmazonVPC,Just RIPDWindowsAmazonVPC]) ==
    isJust (i ^. i1VpcId))
+sameNetwork (Instance _ i0) (Instance _ i1) =
+  i0 ^. i1VpcId == i1 ^. i1VpcId
 sameNetwork a@Instance{..} b = sameNetwork b a
 
 samePlatform :: AwsResource -> AwsResource -> Bool
@@ -316,6 +331,33 @@ samePlatform (Reserved _ r) (Instance _ i) =
    ((i ^. i1Platform) ==
     Just Windows))
 samePlatform a@Instance{..} b = samePlatform b a
+
+comparingResource :: AwsResource -> AwsResource -> Ordering
+comparingResource (Reserved _ r0) (Reserved _ r1) =
+  comparing (view ri1InstanceType) r0 r1 <>
+  comparing (view ri1OfferingType) r0 r1 <>
+  comparing (view ri1AvailabilityZone) r0 r1 <>
+  comparing (view ri1ProductDescription) r0 r1
+comparingResource (Instance _ i0) (Instance _ i1) =
+  comparing (view i1VpcId) i0 i1 <>
+  comparing (view i1InstanceType) i0 i1 <>
+  comparing (view i1Platform) i0 i1 <>
+  comparing (view pAvailabilityZone . view i1Placement) i0 i1
+comparingResource _ (Instance _ _) = GT
+comparingResource (Instance _ _) _ = LT
+
+matchingResource :: AwsResource -> AwsResource -> Bool
+matchingResource a@(Reserved _ r0) b@(Reserved _ r1) =
+  sameAvailabilityZone a b &&
+  sameInstanceType a b &&
+  (r0 ^. ri1OfferingType == r1 ^. ri1OfferingType) &&
+  (r0 ^. ri1ProductDescription == r1 ^. ri1ProductDescription)
+matchingResource a@(Instance _ _) b@(Instance _ _) =
+  sameAvailabilityZone a b &&
+  sameInstanceType a b &&
+  sameNetwork a b &&
+  samePlatform a b
+matchingResource _ _ = False
 
 {- EC2 Instance Type/Group/Factor Table & Lookup -}
 
@@ -386,31 +428,3 @@ normFactor XLarge   = 8
 normFactor XLarge2X = 16
 normFactor XLarge4X = 32
 normFactor XLarge8X = 64
-
-comparingResource :: AwsResource -> AwsResource -> Ordering
-comparingResource (Reserved _ r0) (Reserved _ r1) =
-  comparing (view ri1InstanceType) r0 r1 <>
-  comparing (view ri1OfferingType) r0 r1 <>
-  comparing (view ri1AvailabilityZone) r0 r1 <>
-  comparing (view ri1ProductDescription) r0 r1
-comparingResource (Instance _ i0) (Instance _ i1) =
-  comparing (view i1VpcId) i0 i1 <>
-  comparing (view i1InstanceType) i0 i1 <>
-  comparing (view i1Platform) i0 i1 <>
-  comparing (view pAvailabilityZone . view i1Placement) i0 i1
-comparingResource _ (Instance _ _) = GT
-comparingResource (Instance _ _) _ = LT
-
-matchingResource :: AwsResource -> AwsResource -> Bool
-matchingResource (Reserved _ r0) (Reserved _ r1) =
-  (r0 ^. ri1InstanceType == r1 ^. ri1InstanceType) &&
-  (r0 ^. ri1OfferingType == r1 ^. ri1OfferingType) &&
-  (r0 ^. ri1AvailabilityZone == r1 ^. ri1AvailabilityZone) &&
-  (r0 ^. ri1ProductDescription == r1 ^. ri1ProductDescription)
-matchingResource (Instance _ i0) (Instance _ i1) =
-  (i0 ^. i1VpcId == i1 ^. i1VpcId) &&
-  (i0 ^. i1InstanceType == i1 ^. i1InstanceType) &&
-  (i0 ^. i1Platform == i1 ^. i1Platform) &&
-  (i0 ^. i1Placement ^. pAvailabilityZone) ==
-  (i1 ^. i1Placement ^. pAvailabilityZone)
-matchingResource _ _ = False
