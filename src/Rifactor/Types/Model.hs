@@ -36,7 +36,7 @@ data Resource e r i
   deriving (Eq,Foldable,Functor,Show,Traversable)
 
 data Plan a
-  = Noop
+  = None
   | Item {_item :: a}
   | Used {_used :: Plan a
          ,_usedBy :: [Plan a]}

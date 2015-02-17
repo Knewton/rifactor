@@ -79,7 +79,7 @@ fetchFromAmazon es =
   do insts <- fetchInstances es
      rsrvs <- fetchReserved es
      pure (case insts ++ rsrvs of
-             [] -> Noop
+             [] -> None
              is -> Plans (map Item is))
 
 fetchInstances :: [AwsEnv] -> AWS [AwsResource]
