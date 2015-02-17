@@ -42,6 +42,7 @@ library
                      , conduit
                      , conduit-extra
                      , containers
+                     , criterion
                      , exceptions
                      , lens
                      , mtl
@@ -68,6 +69,7 @@ executable rifactor
                      , conduit
                      , conduit-extra
                      , containers
+                     , criterion
                      , exceptions
                      , lens
                      , mtl
@@ -101,6 +103,7 @@ test-suite test
                      , conduit
                      , conduit-extra
                      , containers
+                     , criterion
                      , exceptions
                      , lens
                      , mtl
