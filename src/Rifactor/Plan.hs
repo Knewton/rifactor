@@ -27,12 +27,16 @@ import           Data.Conduit (($$))
 import           Data.Conduit.Attoparsec (sinkParser)
 import           Data.Conduit.Binary (sourceFile)
 import           Data.Text (Text)
+import qualified Data.Text as T
 import qualified Network.AWS.Data as AWS
 import qualified Network.AWS.EC2 as EC2
 import           Network.AWS.EC2 hiding (Error,Instance,Region)
 import           Rifactor.AWS
+import           Rifactor.Report
 import           Rifactor.Types
 import           System.IO (stdout)
+import           Text.PrettyPrint.ANSI.Leijen hiding (text)
+import qualified Text.PrettyPrint.ANSI.Leijen as ANSI
 
 default (Text)
 
@@ -82,9 +86,13 @@ exec opts =
                    case fetch of
                      (Left err) -> print err >> exitFailure
                      (Right m) ->
-                       do let m' = transition m
+                       do let m'@(Plans ps) = transition m
                           when (opts ^. verbose)
                                (LB.putStrLn (encode m'))
+                          putDoc (report (Plans (filter (\x ->
+                                                           (isSplit x ||
+                                                            isMerge x))
+                                                        ps)))
 
 -- printGroupSums :: Plan -> IO ()
 -- printGroupSums m =
@@ -122,17 +130,17 @@ exec opts =
 
 -- printChangesPlanned :: AwsPlan -> IO ()
 -- printChangesPlanned m =
---   do traverse_ (putStrLn . T.unpack . summary)
+--   do traverse_ (putStrLn . T.unpack . report)
 --                (filter (not . null . view reNewInstances)
 --                        (m ^. reserved))
---      traverse_ (putStrLn . T.unpack . summary)
+--      traverse_ (putStrLn . T.unpack . report)
 --                (m ^. combined)
 
 -- changeReserved :: Plan -> IO ()
 -- changeReserved m =
 --   traverse_ (\r ->
 --                do rs <- doUpdateReserved r
---                   putStrLn (T.unpack (summary r <> " -> " <>
+--                   putStrLn (T.unpack (report r <> " -> " <>
 --                                       case rs of
 --                                         (Left err) ->
 --                                           (fromString . show $ err)
