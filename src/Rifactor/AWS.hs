@@ -111,12 +111,30 @@ fetchReserved =
 
 {- AWS Plan Queries -}
 
-typeSet :: AwsPlan -> Set InstanceType
-typeSet = foldr f Set.empty
+instances :: AwsPlan -> [AwsResource]
+instances = foldr f []
+  where f Reserved{..} z = z
+        f i z = snoc z i
+
+reserved :: AwsPlan -> [AwsResource]
+reserved = foldr f []
+  where f Instance{..} z = z
+        f i z = snoc z i
+
+iTypeSet :: AwsPlan -> Set IType
+iTypeSet = foldr f Set.empty
   where f (Reserved _ _) z = z
         f (Instance _ i) z =
-          Set.insert (i ^. i1InstanceType)
+          Set.insert (find1ByType (i ^. i1InstanceType))
                      z
+
+rITypeSet :: AwsPlan -> Maybe (Set IType)
+rITypeSet = foldr f (Just Set.empty)
+  where f (Reserved _ r) (Just z) =
+          fmap (flip Set.insert z .
+                find1ByType)
+               (r ^. ri1InstanceType)
+        f _ z = z
 
 regionSet  :: AwsPlan -> Set Region
 regionSet = foldr f Set.empty
@@ -127,18 +145,15 @@ regionSet = foldr f Set.empty
           Set.insert (e ^. eEnv ^. envRegion)
                      z
 
-zoneSet  :: AwsPlan -> Set Text
-zoneSet =
-  Set.fromList .
-  catMaybes .
-  toList .
-  foldr f Set.empty
-  where f (Reserved _ r) z =
-          Set.insert (r ^. ri1AvailabilityZone)
-                     z
-        f (Instance _ i) z =
-          Set.insert (i ^. i1Placement ^. pAvailabilityZone)
-                     z
+zoneSet :: AwsPlan -> Maybe (Set Text)
+zoneSet = foldr f (Just Set.empty)
+  where f (Reserved _ r) (Just z) =
+          fmap (flip Set.insert z)
+               (r ^. ri1AvailabilityZone)
+        f (Instance _ i) (Just z) =
+          fmap (flip Set.insert z)
+               (i ^. i1Placement ^. pAvailabilityZone)
+        f _ z = z
 
 instanceNormFactor :: AwsPlan -> Float
 instanceNormFactor = foldr f 0
@@ -150,13 +165,12 @@ instanceNormFactor = foldr f 0
 
 rInstanceNormFactor :: AwsPlan -> Maybe Float
 rInstanceNormFactor = foldr f (Just 0)
-  where f (Reserved _ r) z =
-          liftA2 (+)
-                 z
-                 (liftA2 (*)
-                         (fmap realToFrac (r ^. ri1InstanceCount))
-                         (fmap (view insFactor)
-                               (fmap find1ByType (r ^. ri1InstanceType))))
+  where f (Reserved _ r) (Just z) =
+          fmap (z +)
+               (liftA2 (*)
+                       (fmap realToFrac (r ^. ri1InstanceCount))
+                       (fmap (view insFactor)
+                             (fmap find1ByType (r ^. ri1InstanceType))))
         f _ z = z
 
 instanceCount :: AwsPlan -> Int
@@ -166,8 +180,8 @@ instanceCount m = foldr f 0 m
 
 rInstanceCount :: AwsPlan -> Maybe Int
 rInstanceCount m = foldr f (Just 0) m
-  where f (Reserved _ r) z =
-          liftA2 (+) (r ^. ri1InstanceCount) z
+  where f (Reserved _ r) (Just z) =
+          fmap (+ z) (r ^. ri1InstanceCount)
         f _ z = z
 
 availableNormFactor :: AwsPlan -> Maybe Float
