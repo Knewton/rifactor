@@ -83,6 +83,9 @@ instance Report AwsPlan where
     hang 4 (indent 4 (vsep (map report as)))
   report (Plans as) =
     vsep (map (\a' -> report a' <> linebreak) as)
+    -- TODO group r&i data by region->zone, group->type, vpc/classic
+      -- TODO print summary of reserved totals
+      -- TODO print summary of instances totals
 
 instance Report EC2.ReservedInstances where
   report x =
@@ -123,3 +126,37 @@ instance Report EC2.Instance where
 
 toDoc :: Text -> Doc
 toDoc = text . T.unpack
+
+-- printGroupSums :: Plan -> IO ()
+-- printGroupSums m =
+--   let instanceGroups =
+--         map (\gs@(i:_) ->
+--                (show (i ^. inInstance ^. i1InstanceType)
+--                ,(case (i ^. inInstance ^. i1Placement ^. pAvailabilityZone) of
+--                    Nothing -> ""
+--                    Just az -> T.unpack az)
+--                ,"instance"
+--                ,if isJust (i ^. inInstance ^. i1VpcId)
+--                    then "vpc"
+--                    else "classic"
+--                ,i ^. inAccount
+--                ,(length gs)))
+--             (groupBy matchingInstance (sortBy comparingInstance (m ^. instances)))
+--       reservedGroups =
+--         map (\gs@(r:_) ->
+--                (case (r ^. reReserved ^. ri1InstanceType) of
+--                   Nothing -> "(unknown)"
+--                   Just rType -> show rType
+--                ,case (r ^. reReserved ^. ri1AvailabilityZone) of
+--                   Nothing -> "(unknown)"
+--                   Just az -> T.unpack az
+--                ,"reserved"
+--                ,if ((r ^. reReserved ^. ri1ProductDescription) `elem`
+--                     [Just RIPDLinuxUNIXAmazonVPC,Just RIPDWindowsAmazonVPC])
+--                    then "vpc"
+--                    else "classic"
+--                ,r ^. reAccount
+--                ,sum (catMaybes (map (view ri1InstanceCount . view reReserved) gs))))
+--             (groupBy matchingReserved
+--                      (sortBy comparingReserved (m ^. reserved)))
+--   in traverse_ print (sort (concat [instanceGroups,reservedGroups]))
