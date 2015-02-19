@@ -270,6 +270,12 @@ isMergeable a@(Reserved _ r0) b@(Reserved _ r1) =
   (r0 ^. ri1OfferingType == r1 ^. ri1OfferingType)
 isMergeable _ _ = False
 
+isVPC :: AwsResource -> Bool
+isVPC (Reserved _ r) =
+  (r ^. ri1ProductDescription) `elem`
+  [Just RIPDLinuxUNIXAmazonVPC,Just RIPDWindowsAmazonVPC]
+isVPC (Instance _ i) = isJust (i ^. i1VpcId)
+
 sameAccount :: AwsResource -> AwsResource -> Bool
 sameAccount a b = a ^. rEnv ^. eName == b ^. rEnv ^. eName
 
