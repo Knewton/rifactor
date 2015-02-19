@@ -54,7 +54,7 @@ data IGroup
   | R3
   | T1
   | T2
-  deriving (Show,Eq,Enum)
+  deriving (Enum,Eq,Ord,Show)
 
 data ISize
   = Micro
@@ -65,13 +65,13 @@ data ISize
   | XLarge2X
   | XLarge4X
   | XLarge8X
-  deriving (Show,Eq,Enum)
+  deriving (Enum,Eq,Ord,Show)
 
 data IType =
   IType {_insGroup :: IGroup
         ,_insType :: InstanceType
         ,_insFactor :: Float}
-  deriving (Show,Eq)
+  deriving (Eq,Ord,Show)
 
 {- Eq -}
 
