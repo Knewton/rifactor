@@ -59,20 +59,18 @@ initEnvs cfg lgr =
 
 {- Amazon API Queries -}
 
-checkPendingModifications :: [AwsEnv] -> AWS ()
-checkPendingModifications =
-  traverse_ (\e ->
-               runAWST (e ^. eEnv)
-                       (do rims <-
-                             view drimrReservedInstancesModifications <$>
-                             send (describeReservedInstancesModifications &
-                                   (drimFilters .~
-                                    [filter' "status" &
-                                     fValues .~
-                                     [T.pack "processing"]]))
-                           if null rims
-                              then pure ()
-                              else error "There are pending RI modifications."))
+reservedInstancesModifications :: [AwsEnv] -> AWS [ReservedInstancesModification]
+reservedInstancesModifications =
+  liftA concat .
+  traverse (\e ->
+              runAWST (e ^. eEnv)
+                      (view drimrReservedInstancesModifications <$>
+                       send (describeReservedInstancesModifications &
+                             (drimFilters .~
+                              [filter' "status" &
+                               fValues .~
+                               [T.pack "processing"]]))) >>=
+              hoistEither)
 
 fetchFromAmazon :: [AwsEnv] -> AWS AwsPlan
 fetchFromAmazon es =

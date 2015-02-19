@@ -76,11 +76,13 @@ exec opts =
             envs <- initEnvs cfg lgr
             pending <-
               runAWST (noEnv ^. eEnv)
-                      (checkPendingModifications envs)
+                      (reservedInstancesModifications envs)
             case pending of
-              (Left err) -> print err >> exitFailure
-              _ ->
-                do fetch <-
+              Left err -> print err >> exitFailure
+              Right p ->
+                do when (not . null $ p)
+                        (error "There are pending RI modifications.")
+                   fetch <-
                      runAWST (noEnv ^. eEnv)
                              (fetchFromAmazon envs)
                    case fetch of
