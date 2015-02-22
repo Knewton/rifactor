@@ -70,7 +70,7 @@ data ISize
 data IType =
   IType {_insGroup :: IGroup
         ,_insType :: InstanceType
-        ,_insFactor :: Float}
+        ,_insFactor :: Double}
   deriving (Eq,Ord,Show)
 
 {- Eq -}

@@ -155,7 +155,7 @@ zoneSet = foldr f (Just Set.empty)
                (i ^. i1Placement ^. pAvailabilityZone)
         f _ z = z
 
-instanceNormFactor :: AwsPlan -> Float
+instanceNormFactor :: AwsPlan -> Double
 instanceNormFactor = foldr f 0
   where f (Instance _ i) z =
           z +
@@ -163,7 +163,7 @@ instanceNormFactor = foldr f 0
           insFactor
         f _ z = z
 
-rInstanceNormFactor :: AwsPlan -> Maybe Float
+rInstanceNormFactor :: AwsPlan -> Maybe Double
 rInstanceNormFactor = foldr f (Just 0)
   where f (Reserved _ r) (Just z) =
           fmap (z +)
@@ -184,7 +184,7 @@ rInstanceCount m = foldr f (Just 0) m
           fmap (+ z) (r ^. ri1InstanceCount)
         f _ z = z
 
-availableNormFactor :: AwsPlan -> Maybe Float
+availableNormFactor :: AwsPlan -> Maybe Double
 availableNormFactor p =
   fmap (flip (-) (instanceNormFactor p))
        (rInstanceNormFactor p)
@@ -298,27 +298,34 @@ sameRegion a b =
   (a ^. rEnv ^. eEnv ^. envRegion == b ^. rEnv ^. eEnv ^. envRegion)
 
 sameInstanceType :: AwsResource -> AwsResource -> Bool
-sameInstanceType (Reserved _ r) (Instance _ i)=
-  (r ^. ri1InstanceType == i ^? i1InstanceType)
 sameInstanceType (Reserved _ r0) (Reserved _ r1)=
   (r0 ^. ri1InstanceType == r1 ^. ri1InstanceType)
+sameInstanceType (Instance _ a) (Instance _ b) =
+  (a ^. i1InstanceType == b ^. i1InstanceType)
+sameInstanceType (Reserved _ r) (Instance _ i)=
+  (r ^. ri1InstanceType == i ^? i1InstanceType)
 sameInstanceType a@Instance{..} b = sameInstanceType b a
 
 sameAvailabilityZone :: AwsResource -> AwsResource -> Bool
-sameAvailabilityZone (Reserved _ r) (Instance _ i) =
-  (r ^. ri1AvailabilityZone == i ^. i1Placement ^. pAvailabilityZone)
 sameAvailabilityZone (Reserved _ r0) (Reserved _ r1)=
   (r0 ^. ri1AvailabilityZone == r1 ^. ri1AvailabilityZone)
 sameAvailabilityZone (Instance _ i0) (Instance _ i1) =
   (i0 ^. i1Placement ^. pAvailabilityZone) ==
   (i1 ^. i1Placement ^. pAvailabilityZone)
+sameAvailabilityZone (Reserved _ r) (Instance _ i) =
+  (r ^. ri1AvailabilityZone == i ^. i1Placement ^. pAvailabilityZone)
 sameAvailabilityZone a@Instance{..} b = sameAvailabilityZone b a
 
 sameGroup :: AwsResource -> AwsResource -> Bool
 sameGroup (Reserved _ r0) (Reserved _ r1) =
-  (find1ByType (r0 ^. ri1InstanceType ^?! _Just) ^.
+  (find1ByType (r0 ^. ri1InstanceType ^?! _Just) ^. -- FIXME
    insGroup ==
-   find1ByType (r1 ^. ri1InstanceType ^?! _Just) ^.
+   find1ByType (r1 ^. ri1InstanceType ^?! _Just) ^. -- FIXME
+   insGroup)
+sameGroup (Instance _ a) (Instance _ b) =
+  (find1ByType (a ^. i1InstanceType) ^.
+   insGroup ==
+   find1ByType (b ^. i1InstanceType) ^.
    insGroup)
 sameGroup (Reserved _ r) (Instance _ i) =
   fmap (view insGroup . find1ByType)
@@ -333,12 +340,12 @@ sameNetwork (Reserved _ r0) (Reserved _ r1) =
     [Just RIPDLinuxUNIXAmazonVPC,Just RIPDWindowsAmazonVPC]) ==
    (r1 ^. ri1ProductDescription) `elem`
     [Just RIPDLinuxUNIXAmazonVPC,Just RIPDWindowsAmazonVPC])
+sameNetwork (Instance _ i0) (Instance _ i1) =
+  i0 ^. i1VpcId == i1 ^. i1VpcId
 sameNetwork (Reserved _ r) (Instance _ i) =
   (((r ^. ri1ProductDescription) `elem`
     [Just RIPDLinuxUNIXAmazonVPC,Just RIPDWindowsAmazonVPC]) ==
    isJust (i ^. i1VpcId))
-sameNetwork (Instance _ i0) (Instance _ i1) =
-  i0 ^. i1VpcId == i1 ^. i1VpcId
 sameNetwork a@Instance{..} b = sameNetwork b a
 
 samePlatform :: AwsResource -> AwsResource -> Bool
@@ -347,6 +354,8 @@ samePlatform (Reserved _ r0) (Reserved _ r1) =
     [Just RIPDWindows,Just RIPDWindowsAmazonVPC]) ==
    ((r1 ^. ri1ProductDescription) `elem`
     [Just RIPDWindows,Just RIPDWindowsAmazonVPC]))
+samePlatform (Instance _ a) (Instance _ b) =
+  (a ^. i1Platform == b ^. i1Platform)
 samePlatform (Reserved _ r) (Instance _ i) =
   (((r ^. ri1ProductDescription) `elem`
     [Just RIPDWindows,Just RIPDWindowsAmazonVPC]) ==
@@ -391,7 +400,7 @@ findByGroup :: IGroup -> [IType]
 findByGroup g =
   filter ((==) g . view insGroup) instanceTypes
 
-findByFactor :: IGroup -> Float -> [IType]
+findByFactor :: IGroup -> Double -> [IType]
 findByFactor g f =
   filter (\i -> i ^. insGroup == g && i ^. insFactor == f) instanceTypes
 
@@ -442,7 +451,7 @@ instanceTypes =
           ,IType T2 T2_Micro (normFactor Micro)
           ,IType T2 T2_Small (normFactor Small)])
 
-normFactor :: ISize -> Float
+normFactor :: ISize -> Double
 normFactor Micro    = 0.5
 normFactor Small    = 1
 normFactor Medium   = 2

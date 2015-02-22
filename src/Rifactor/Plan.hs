@@ -21,6 +21,7 @@ import           Control.Lens
 import qualified Control.Monad.Trans.AWS as AWS
 import           Control.Monad.Trans.AWS hiding (Env)
 import           Control.Monad.Trans.Resource (runResourceT)
+import           Criterion.Main
 import           Data.Aeson
 import qualified Data.ByteString.Lazy.Char8 as LB
 import           Data.Conduit (($$))
@@ -28,6 +29,8 @@ import           Data.Conduit.Attoparsec (sinkParser)
 import           Data.Conduit.Binary (sourceFile)
 import           Data.Text (Text)
 import qualified Data.Text as T
+import qualified Data.UUID as UUID
+import           Data.UUID.V4
 import qualified Network.AWS.Data as AWS
 import qualified Network.AWS.EC2 as EC2
 import           Network.AWS.EC2 hiding (Error,Instance,Region)
@@ -35,7 +38,6 @@ import           Rifactor.AWS
 import           Rifactor.Report
 import           Rifactor.Types
 import           System.IO (stdout)
-import           Text.PrettyPrint.ANSI.Leijen hiding (text)
 import qualified Text.PrettyPrint.ANSI.Leijen as ANSI
 
 default (Text)
@@ -87,38 +89,72 @@ exec opts =
                              (fetchFromAmazon envs)
                    case fetch of
                      (Left err) -> print err >> exitFailure
-                     (Right m) ->
-                       do let m'@(Plans ps) = transition m
-                          when (opts ^. verbose)
-                               (LB.putStrLn (encode m'))
-                          putDoc (report (Plans (filter (\x ->
-                                                           (isSplit x ||
-                                                            isMerge x))
-                                                        ps)))
-
--- printChangesPlanned :: AwsPlan -> IO ()
--- printChangesPlanned m =
---   do traverse_ (putStrLn . T.unpack . report)
---                (filter (not . null . view reNewInstances)
---                        (m ^. reserved))
---      traverse_ (putStrLn . T.unpack . report)
---                (m ^. combined)
-
--- changeReserved :: Plan -> IO ()
--- changeReserved m =
---   traverse_ (\r ->
---                do rs <- doUpdateReserved r
---                   putStrLn (T.unpack (report r <> " -> " <>
---                                       case rs of
---                                         (Left err) ->
---                                           (fromString . show $ err)
---                                         (Right rim) ->
---                                           maybe "(unknown)"
---                                                 id
---                                                 (rim ^.
---                                                  mrirReservedInstancesModificationId))))
---             (filter (not . null . view reNewInstances)
---                     (m ^. reserved))
+                     (Right p) ->
+                       do let p'@(Plans ps) = transition p
+                          forM_ ps
+                                (\x ->
+                                   do ANSI.putDoc
+                                        (report x ANSI.<> ANSI.linebreak <>
+                                         ANSI.linebreak)
+                                      when (not (opts ^. dryRun))
+                                           (do when (isSplit x)
+                                                    (do s <- doUpdateReserved x
+                                                        case s of
+                                                          Left err ->
+                                                            ANSI.putDoc
+                                                              (ANSI.hang 2
+                                                                         (ANSI.indent 2 $
+                                                                          ANSI.text $
+                                                                          show err) ANSI.<>
+                                                               ANSI.linebreak ANSI.<>
+                                                               ANSI.linebreak)
+                                                          Right rs ->
+                                                            case rs ^.
+                                                                 mrirReservedInstancesModificationId of
+                                                              Nothing ->
+                                                                ANSI.putDoc
+                                                                  (ANSI.hang 2
+                                                                             (ANSI.indent
+                                                                                2
+                                                                                ("OK" ANSI.<>
+                                                                                 ANSI.linebreak ANSI.<>
+                                                                                 ANSI.linebreak)))
+                                                              Just id' ->
+                                                                ANSI.putDoc
+                                                                  (ANSI.hang 2
+                                                                             (ANSI.indent 2
+                                                                                          (ANSI.text (T.unpack id')) ANSI.<>
+                                                                              ANSI.linebreak ANSI.<>
+                                                                              ANSI.linebreak)))
+                                               when (isMerge x)
+                                                    (do m <- doMergeReserved x
+                                                        case m of
+                                                          Left err ->
+                                                            ANSI.putDoc
+                                                              (ANSI.hang 2
+                                                                         (ANSI.indent 2 $
+                                                                          ANSI.text $
+                                                                          show err) ANSI.<>
+                                                               ANSI.linebreak ANSI.<>
+                                                               ANSI.linebreak)
+                                                          Right rs ->
+                                                            case rs ^.
+                                                                 mrirReservedInstancesModificationId of
+                                                              Nothing ->
+                                                                ANSI.putDoc
+                                                                  (ANSI.hang 2
+                                                                             (ANSI.indent
+                                                                                2
+                                                                                ("OK" ANSI.<>
+                                                                                 ANSI.linebreak ANSI.<>
+                                                                                 ANSI.linebreak)))
+                                                              Just id' ->
+                                                                ANSI.putDoc
+                                                                  (ANSI.hang 2
+                                                                             (ANSI.indent 2
+                                                                                          (ANSI.text (T.unpack id')) ANSI.<>
+                                                                              ANSI.linebreak ANSI.<>
+                                                                              ANSI.linebreak)))))
 
 -- | Transform the Plan through steps & return the new Plan.
 transition :: AwsPlanTransition
@@ -201,62 +237,123 @@ mergeInstances matchFn mergeFn (Plans ps) =
           in go xs ys' (z : zs)
 mergeInstances _ _ p = p
 
--- doUpdateReserved :: Reserved
---                  -> IO (Either Error ModifyReservedInstancesResponse)
--- doUpdateReserved r
---   | isNothing (r ^. reReserved ^. ri1ReservedInstancesId) ||
---       isNothing (r ^. reReserved ^. ri1InstanceCount) = error "WTF"
--- doUpdateReserved r =
---   do uuid <- nextRandom
---      let r' = r ^. reReserved
---          (newFactor,new) =
---            foldl (\(total,xs) os@((Instance _ _ i):_) ->
---                     (total
---                     ,(reservedInstancesConfiguration &
---                       (ricAvailabilityZone .~ i ^. i1Placement ^.
---                        pAvailabilityZone) &
---                       (ricInstanceType ?~ i ^. i1InstanceType) &
---                       (ricPlatform ?~
---                        case (i ^. i1VpcId) of
---                          Nothing -> "EC2-Classic"
---                          Just _ -> "EC2-VPC") &
---                       (ricInstanceCount ?~ length os)) :
---                      xs))
---                  (0 :: Double,[])
---                  (groupBy matchingInstance
---                           (sortBy comparingInstance (r ^. reNewInstances)))
---          -- Calculate a pad
---          oldType = r' ^. ri1InstanceType ^?! _Just
---          oldCount = r' ^. ri1InstanceCount ^?! _Just
---          (InstanceTypeDetails _ s) = instanceTypeDetails oldType
---          rFactor = instanceSizeFactor s
---          reservedFactor = rFactor * fromIntegral oldCount
---          padFactor = reservedFactor - newFactor
---          pad =
---            round (padFactor / realToFrac rFactor) :: Int
---          old =
---            case (r ^. reInstances) of
---              [] -> []
---              is@(i:_) ->
---                [(reservedInstancesConfiguration &
---                  (ricAvailabilityZone .~ r' ^. ri1AvailabilityZone) &
---                  (ricInstanceType .~ r' ^?! ri1InstanceType) &
---                  (ricPlatform ?~
---                   case (i ^. inInstance ^. i1VpcId) of
---                     Nothing -> "EC2-Classic"
---                     Just _ -> "EC2-VPC") &
---                  (ricInstanceCount ?~
---                   (length is) +
---                   pad))]
---      runAWST (r ^. reEnv)
---              (send (modifyReservedInstances &
---                     (mriReservedInstancesIds .~
---                      [r ^. reReserved ^. ri1ReservedInstancesId ^?! _Just]) &
---                     (mriClientToken ?~
---                      T.pack (toString uuid)) &
---                     (mriTargetConfigurations .~ old ++ new)))
+mkConfig :: [AwsResource] -> Maybe ReservedInstancesConfiguration
+mkConfig is@(Instance _ i:_) =
+          Just (mkConfig' (i ^. i1Placement ^. pAvailabilityZone)
+                        (i ^. i1InstanceType)
+                        (isJust (i ^. i1VpcId))
+                        (length is))
+mkConfig _ = Nothing
 
--- doMergeReserved :: Merge
---                   -> IO (Either Error ModifyReservedInstancesResponse)
--- doMergeReserved = undefined
--- -- TODO calculate the match between two different sized reserved
+mkConfig' :: Maybe Text
+          -> InstanceType
+          -> Bool
+          -> Int
+          -> ReservedInstancesConfiguration
+mkConfig' az iType isVpc count =
+          reservedInstancesConfiguration &
+          (ricAvailabilityZone .~ az) &
+          (ricInstanceType ?~ iType) &
+          (ricPlatform ?~
+           if isVpc
+              then "EC2-VPC"
+              else "EC2-Classic") &
+          (ricInstanceCount ?~ count)
+
+foldPadding :: Maybe Text
+            -> Bool
+            -> Double
+            -> [IType]
+            -> ModifyReservedInstances
+            -> ModifyReservedInstances
+foldPadding _ _ _ [] rq = rq
+foldPadding _ _ a _ rq | a <= 0.0 = rq
+foldPadding az v a (it:its) rq =
+  if a `mod'`
+     (it ^. insFactor) /=
+     0.0
+     then foldPadding az v a its rq
+     else let count =
+                a `div'`
+                (it ^. insFactor) :: Int
+              avail' =
+                a -
+                (realToFrac count *
+                 (it ^. insFactor))
+          in foldPadding
+               az
+               v
+               avail'
+               its
+               (rq & mriTargetConfigurations %~
+                (|> (mkConfig' az (it ^. insType) v count)))
+
+foldConfigs :: [AwsResource]
+            -> ModifyReservedInstances
+            -> Maybe ModifyReservedInstances
+foldConfigs is rq =
+  foldr f
+        (Just rq)
+        (groupBy matchingResource (sortBy comparingResource is))
+  where f is' rq' =
+          liftA2 (\r c -> r & mriTargetConfigurations %~ (|> c))
+                 rq'
+                 (mkConfig is')
+
+doUpdateReserved :: AwsPlan -> IO (Either Error ModifyReservedInstancesResponse)
+doUpdateReserved s@Split{..} =
+  do uuid <- nextRandom
+     let rs@(Reserved _ r) = head (reserved s) -- FIXME
+         rq =
+           modifyReservedInstances &
+           (mriReservedInstancesIds .~
+            [r ^. ri1ReservedInstancesId ^?! _Just]) &
+           (mriClientToken ?~
+            T.pack (UUID.toString uuid))
+         rq' =
+           foldConfigs (instances s)
+                       rq
+         maybeAvail = availableNormFactor s
+         cs =
+           reverse (findByGroup
+                      (find1ByType
+                         ((r ^. ri1InstanceType) ^?!
+                          _Just) ^.
+                       insGroup)) -- FIXME
+         az = r ^. ri1AvailabilityZone
+         v = isVPC rs
+         rq'' =
+           liftA2 (\a b ->
+                     foldPadding az v a cs b)
+                  maybeAvail
+                  rq'
+     case rq'' of
+       Just rq''' ->
+         runAWST (rs ^. rEnv ^. eEnv)
+                 (send rq''')
+       Nothing -> error "nothing"
+
+doMergeReserved :: AwsPlan -> IO (Either Error ModifyReservedInstancesResponse)
+doMergeReserved m@Merge{..} =
+  do uuid <- nextRandom
+     let rs@(h@(Reserved e r):_t) = reserved m
+         rq =
+           modifyReservedInstances &
+           (mriReservedInstancesIds .~
+            (map (\(Reserved _ r') -> r' ^. ri1ReservedInstancesId ^?! _Just) rs)) &
+           (mriClientToken ?~
+            T.pack (UUID.toString uuid))
+         maybeAvail = availableNormFactor m
+         cs =
+           reverse (findByGroup
+                      (find1ByType
+                         ((r ^. ri1InstanceType) ^?!
+                          _Just) ^.
+                       insGroup)) -- FIXME
+         az = r ^. ri1AvailabilityZone
+         v = isVPC h
+     case fmap (\a -> foldPadding az v a cs rq) maybeAvail of
+       Just rq'' ->
+         runAWST (e ^. eEnv)
+                 (send rq'')
+       Nothing -> error "nothing"
