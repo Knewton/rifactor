@@ -48,7 +48,7 @@ parserInfo =
                   short 'v' <>
                   help "Show trace-level AWS data"))))
        (fullDesc <>
-        header (("REFactor " ++ version) ++
+        header (("RIFactor " ++ version) ++
                 (" | Source: " ++ gitRev) ++
                 (" | Built: " ++ buildDate)) <>
         progDesc "Optimize AWS Reserved Instances")
