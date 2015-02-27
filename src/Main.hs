@@ -40,7 +40,7 @@ parserInfo =
                      short 'c' <>
                      metavar "FILE" <>
                      help "Read JSON config from FILE") <|>
-          pure "config.json") <*>
+          pure "/etc/rifactor/config.json") <*>
          (switch (long "dry-run" <>
                   short 'd' <>
                   help "Print instead of running")) <*>
