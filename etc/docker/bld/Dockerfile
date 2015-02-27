@@ -1,6 +1,6 @@
 #-*- mode:conf; -*-
 
-FROM docker.knewton.net/knewton/rifactor:dev
+FROM knewton/rifactor:dev
 MAINTAINER Tim Dysinger <tim@knewton.com>
 
 ADD ./ /usr/local/src/rifactor/

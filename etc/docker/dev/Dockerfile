@@ -1,6 +1,6 @@
 #-*- mode:conf; -*-
 
-FROM docker.knewton.net/knewton/rifactor:lib
+FROM knewton/rifactor:lib
 MAINTAINER Tim Dysinger <tim@knewton.com>
 
 ENV GHCVER=7.8.4

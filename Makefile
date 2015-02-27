@@ -16,7 +16,7 @@ default: docker-run
 docker-lib:
 	@ln -sf ./etc/docker/lib/Dockerfile .
 	@docker build \
-		--tag=docker.knewton.net/knewton/rifactor:lib \
+		--tag=knewton/rifactor:lib \
 		$(PWD)
 
 # DEV DOCKER IMAGE: DEV TOOLS FOR THIS PROJECT ADDED ON TOP "LIB"
@@ -24,7 +24,7 @@ docker-dev:
 	@ln -sf ./etc/docker/dev/Dockerfile .
 	@docker build \
 		--rm=false \
-		--tag=docker.knewton.net/knewton/rifactor:dev \
+		--tag=knewton/rifactor:dev \
 		$(PWD)
 
 # BLD DOCKER IMAGE: BUILD/TEST THIS PROJECT ON TOP OUR "DEV" IMAGE
@@ -32,14 +32,14 @@ docker-bld:
 	@ln -sf ./etc/docker/bld/Dockerfile .
 	@docker build \
 		--rm=false \
-		--tag=docker.knewton.net/knewton/rifactor:bld \
+		--tag=knewton/rifactor:bld \
 		$(PWD)
 
 # EXTRACT BINARY: COPY THE BINARY EXE FROM OUR PROJECT "BLD" IMAGE
 rifactor: docker-bld
 	@docker run \
 		--volume=$(TMP):/host \
-		docker.knewton.net/knewton/rifactor:bld \
+		knewton/rifactor:bld \
 		cp /usr/local/bin/rifactor /host/
 	@cp $(TMP)/rifactor .
 
@@ -47,7 +47,7 @@ rifactor: docker-bld
 docker-run: rifactor
 	@ln -sf ./etc/docker/run/Dockerfile .
 	@docker build \
-		--tag=docker.knewton.net/knewton/rifactor \
+		--tag=knewton/rifactor \
 		$(PWD)
 
 clean:
