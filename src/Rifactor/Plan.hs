@@ -21,7 +21,6 @@ import           Control.Lens
 import qualified Control.Monad.Trans.AWS as AWS
 import           Control.Monad.Trans.AWS hiding (Env)
 import           Control.Monad.Trans.Resource (runResourceT)
-import           Criterion.Main
 import           Data.Aeson
 import qualified Data.ByteString.Lazy.Char8 as LB
 import           Data.Conduit (($$))
