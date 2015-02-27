@@ -92,7 +92,6 @@ test-suite test
   type:                exitcode-stdio-1.0
   ghc-options:         -Wall
   build-depends:       base          >=4.7   && <4.8
-                     , Cabal                    <1.22
                      , aeson
                      , amazonka      >=0.2.3 && <0.3
                      , amazonka-core >=0.2.3 && <0.3
