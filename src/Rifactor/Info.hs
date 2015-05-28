@@ -18,7 +18,7 @@
 module Rifactor.Info where
 
 import           BasePrelude
-import           Control.Lens
+import           Control.Lens hiding ((&))
 import qualified Control.Monad.Trans.AWS as AWS
 import           Data.Text (Text)
 import qualified Data.Text as T

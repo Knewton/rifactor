@@ -17,9 +17,9 @@
 module Rifactor.Plan where
 
 import           BasePrelude
-import           Control.Lens
+import           Control.Lens hiding ((&))
 import qualified Control.Monad.Trans.AWS as AWS
-import           Control.Monad.Trans.AWS hiding (Env)
+import           Control.Monad.Trans.AWS hiding (Env, sourceFile)
 import           Control.Monad.Trans.Resource (runResourceT)
 import           Data.Aeson
 import qualified Data.ByteString.Lazy.Char8 as LB
@@ -88,12 +88,16 @@ exec opts =
                              (fetchFromAmazon envs)
                    case fetch of
                      (Left err) -> print err >> exitFailure
-                     (Right p) ->
-                       do let p'@(Plans ps) = transition p
-                          forM_ ps
+                     (Right p') ->
+                       do let (Plans ps) = transition p'
+                              changes = filter (\x ->
+                                                 (isSplit x ||
+                                                  isMerge x)) ps
+                          forM_ changes
                                 (\x ->
                                    do ANSI.putDoc
-                                        (report x ANSI.<> ANSI.linebreak <>
+                                        (report x ANSI.<>
+                                         ANSI.linebreak <>
                                          ANSI.linebreak)
                                       when (not (opts ^. dryRun))
                                            (do when (isSplit x)

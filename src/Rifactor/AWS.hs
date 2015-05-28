@@ -17,7 +17,7 @@
 module Rifactor.AWS where
 
 import           BasePrelude
-import           Control.Lens
+import           Control.Lens hiding ((&))
 import qualified Control.Monad.Trans.AWS as AWS
 import           Control.Monad.Trans.AWS hiding (Empty,Env)
 import qualified Data.ByteString.Char8 as B

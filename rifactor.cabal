@@ -1,5 +1,5 @@
 name:                rifactor
-version:             0.1.0.0
+version:             0.1.0.1
 homepage:            https://github.com/Knewton/rifactor
 synopsis:            AWS Reserved Instance Optimization
 description:         Watches over your AWS Reserved Instances making sure they
@@ -31,11 +31,11 @@ library
                        Rifactor.Types.Model
                        Rifactor.Types.Options
   ghc-options:         -Wall
-  build-depends:       base          >=4.7   && <4.8
+  build-depends:       base >=4.7 && <4.8
                      , aeson
-                     , amazonka      >=0.2.3 && <0.3
-                     , amazonka-core >=0.2.3 && <0.3
-                     , amazonka-ec2  >=0.2.3 && <0.3
+                     , amazonka      
+                     , amazonka-core 
+                     , amazonka-ec2  
                      , ansi-wl-pprint
                      , base-prelude
                      , bytestring
@@ -57,11 +57,11 @@ executable rifactor
   hs-source-dirs:      src
   main-is:             Main.hs
   ghc-options:         -Wall
-  build-depends:       base          >=4.7   && <4.8
+  build-depends:       base >=4.7 && <4.8
                      , aeson
-                     , amazonka      >=0.2.3 && <0.3
-                     , amazonka-core >=0.2.3 && <0.3
-                     , amazonka-ec2  >=0.2.3 && <0.3
+                     , amazonka      
+                     , amazonka-core 
+                     , amazonka-ec2  
                      , ansi-wl-pprint
                      , base-prelude
                      , bytestring
@@ -89,11 +89,11 @@ test-suite test
   main-is:             test.hs
   type:                exitcode-stdio-1.0
   ghc-options:         -Wall
-  build-depends:       base          >=4.7   && <4.8
+  build-depends:       base >=4.7 && <4.8
                      , aeson
-                     , amazonka      >=0.2.3 && <0.3
-                     , amazonka-core >=0.2.3 && <0.3
-                     , amazonka-ec2  >=0.2.3 && <0.3
+                     , amazonka
+                     , amazonka-core
+                     , amazonka-ec2 
                      , ansi-wl-pprint
                      , base-prelude
                      , bytestring

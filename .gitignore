@@ -2,9 +2,12 @@
 *~
 /.cabal-sandbox/
 /.idea/
+/Dockerfile
 /README.md
-/cabal.sandbox.config
+/Vagrantfile
+/cabal*.config
+/config*.json
 /dist
 /dist/
 /out/
-/Dockerfile
+/rifactor

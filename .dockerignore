@@ -1,0 +1,3 @@
+.cabal-sandbox/lib
+cabal*.config
+dist
