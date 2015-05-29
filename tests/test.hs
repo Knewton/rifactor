@@ -18,7 +18,7 @@
 -- Stability   : experimental
 -- Portability : non-portable (GHC extensions)
 
-import           BasePrelude
+import           BasePrelude hiding ((&))
 import           Control.Lens
 import           Control.Monad.Trans.AWS (Env, envRegion)
 import           Data.Text (Text)
