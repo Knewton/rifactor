@@ -447,6 +447,7 @@ instanceTypes =
           ,IType R3 R3_Large (normFactor Large)
           ,IType R3 R3_XLarge (normFactor XLarge)
           ,IType T1 T1_Micro (normFactor Micro)
+          ,IType T2 T2_Large (normFactor Large)
           ,IType T2 T2_Medium (normFactor Medium)
           ,IType T2 T2_Micro (normFactor Micro)
           ,IType T2 T2_Small (normFactor Small)])
