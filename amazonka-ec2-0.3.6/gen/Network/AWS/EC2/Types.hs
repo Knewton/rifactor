@@ -7583,6 +7583,7 @@ data InstanceType
     | R3_Large    -- ^ r3.large
     | R3_XLarge   -- ^ r3.xlarge
     | T1_Micro    -- ^ t1.micro
+    | T2_Large    -- ^ t2.large
     | T2_Medium   -- ^ t2.medium
     | T2_Micro    -- ^ t2.micro
     | T2_Small    -- ^ t2.small
@@ -7636,6 +7637,7 @@ instance FromText InstanceType where
         "r3.large"    -> pure R3_Large
         "r3.xlarge"   -> pure R3_XLarge
         "t1.micro"    -> pure T1_Micro
+        "t2.large"    -> pure T2_Large
         "t2.medium"   -> pure T2_Medium
         "t2.micro"    -> pure T2_Micro
         "t2.small"    -> pure T2_Small
@@ -7688,6 +7690,7 @@ instance ToText InstanceType where
         R3_Large    -> "r3.large"
         R3_XLarge   -> "r3.xlarge"
         T1_Micro    -> "t1.micro"
+        T2_Large    -> "t2.large"
         T2_Medium   -> "t2.medium"
         T2_Micro    -> "t2.micro"
         T2_Small    -> "t2.small"
