@@ -1,5 +1,5 @@
 name:                rifactor
-version:             0.1.0.1
+version:             0.1.0.2
 homepage:            https://github.com/Knewton/rifactor
 synopsis:            AWS Reserved Instance Optimization
 description:         Watches over your AWS Reserved Instances making sure they
