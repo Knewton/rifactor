@@ -31,7 +31,7 @@ library
                        Rifactor.Types.Model
                        Rifactor.Types.Options
   ghc-options:         -Wall
-  build-depends:       base >=4.7 && <4.8
+  build-depends:       base >=4.7 && <5
                      , aeson
                      , amazonka      
                      , amazonka-core 
@@ -57,7 +57,7 @@ executable rifactor
   hs-source-dirs:      src
   main-is:             Main.hs
   ghc-options:         -Wall
-  build-depends:       base >=4.7 && <4.8
+  build-depends:       base >=4.7 && <5
                      , aeson
                      , amazonka      
                      , amazonka-core 
@@ -89,7 +89,7 @@ test-suite test
   main-is:             test.hs
   type:                exitcode-stdio-1.0
   ghc-options:         -Wall
-  build-depends:       base >=4.7 && <4.8
+  build-depends:       base >=4.7 && <5
                      , aeson
                      , amazonka
                      , amazonka-core

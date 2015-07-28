@@ -40,11 +40,11 @@ rifactor: docker-bld
 	@docker run \
 		--volume=$(TMP):/host \
 		rifactor:bld \
-		cp /usr/local/bin/rifactor /host/
+		cp /root/.local/bin/rifactor /host/
 	@cp $(TMP)/rifactor .
 
 # RUN DOCKER IMAGE: ADD THE PROJECT'S BINARY ON TOP OUR "LIB" IMAGE
-docker-run: rifactor
+docker-run: | rifactor
 	@ln -sf ./etc/docker/run/Dockerfile .
 	@docker build \
 		--tag=rifactor \

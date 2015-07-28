@@ -1,3 +1,4 @@
-.cabal-sandbox/lib
+.cabal-sandbox
+.stack-work
 cabal*.config
 dist

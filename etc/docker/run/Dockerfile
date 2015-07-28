@@ -1,6 +1,6 @@
 #-*- mode:conf; -*-
 
-FROM knewton/rifactor:lib
+FROM rifactor:lib
 MAINTAINER Tim Dysinger <tim@knewton.com>
 
 ADD rifactor /usr/local/bin/rifactor
