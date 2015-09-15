@@ -338,8 +338,8 @@ sameNetwork :: AwsResource -> AwsResource -> Bool
 sameNetwork (Reserved _ r0) (Reserved _ r1) =
   (((r0 ^. ri1ProductDescription) `elem`
     [Just RIPDLinuxUNIXAmazonVPC,Just RIPDWindowsAmazonVPC]) ==
-   (r1 ^. ri1ProductDescription) `elem`
-    [Just RIPDLinuxUNIXAmazonVPC,Just RIPDWindowsAmazonVPC])
+   ((r1 ^. ri1ProductDescription) `elem`
+    [Just RIPDLinuxUNIXAmazonVPC,Just RIPDWindowsAmazonVPC]))
 sameNetwork (Instance _ i0) (Instance _ i1) =
   i0 ^. i1VpcId == i1 ^. i1VpcId
 sameNetwork (Reserved _ r) (Instance _ i) =
