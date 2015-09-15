@@ -2,10 +2,10 @@ flags: {}
 packages:
 - '.'
 - './amazonka-ec2-0.3.6'
-extra-deps: [ ]
-resolver: lts-2.18
-image:
-  container:
-    base: "ubuntu-with-libgmp:14.04"
-    entrypoints:
-      - rifactor
+extra-deps: [ git-embed-0.1.0 ]
+resolver: lts-3.4
+# image:
+#   container:
+#     base: "dysinger/ubuntu-with-libgmp:14.04"
+#     entrypoints:
+#       - rifactor
