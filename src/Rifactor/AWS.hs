@@ -394,7 +394,9 @@ matchingResource _ _ = False
 
 find1ByType :: EC2.InstanceType -> IType
 find1ByType t =
-  head (filter ((==) t . view insType) instanceTypes)
+  case (filter ((==) t . view insType) instanceTypes) of
+    []    -> error ("Can't find InstanceType " ++ (show t))
+    (x:_) -> x
 
 findByGroup :: IGroup -> [IType]
 findByGroup g =
