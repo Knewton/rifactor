@@ -57,6 +57,15 @@ executable rifactor
   hs-source-dirs:      src
   main-is:             Main.hs
   ghc-options:         -Wall
+  other-modules:       Rifactor.AWS
+                       Rifactor.Plan
+                       Rifactor.Report
+                       Rifactor.Types
+                       Rifactor.Types.AWS
+                       Rifactor.Types.Config
+                       Rifactor.Types.Internal
+                       Rifactor.Types.Model
+                       Rifactor.Types.Options
   build-depends:       base >=4.7 && <5
                      , aeson
                      , amazonka      
