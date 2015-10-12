@@ -51,6 +51,7 @@ data IGroup
   | M1
   | M2
   | M3
+  | M4
   | R3
   | T1
   | T2
@@ -65,6 +66,7 @@ data ISize
   | XLarge2X
   | XLarge4X
   | XLarge8X
+  | XLarge10X
   deriving (Enum,Eq,Ord,Show)
 
 data IType =

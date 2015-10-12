@@ -441,6 +441,11 @@ instanceTypes =
           ,IType M3 M3_Large (normFactor Large)
           ,IType M3 M3_Medium (normFactor Medium)
           ,IType M3 M3_XLarge (normFactor XLarge)
+          ,IType M4 M4_Large (normFactor Large)
+          ,IType M4 M4_XLarge (normFactor XLarge)
+          ,IType M4 M4_2XLarge (normFactor XLarge2X)
+          ,IType M4 M4_4XLarge (normFactor XLarge4X)
+          ,IType M4 M4_10XLarge (normFactor XLarge10X)
           ,IType R3 R3_2XLarge (normFactor XLarge2X)
           ,IType R3 R3_4XLarge (normFactor XLarge4X)
           ,IType R3 R3_8XLarge (normFactor XLarge8X)
@@ -461,3 +466,4 @@ normFactor XLarge   = 8
 normFactor XLarge2X = 16
 normFactor XLarge4X = 32
 normFactor XLarge8X = 64
+normFactor XLarge10X = 80
