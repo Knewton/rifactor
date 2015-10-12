@@ -7577,6 +7577,11 @@ data InstanceType
     | M3_Large    -- ^ m3.large
     | M3_Medium   -- ^ m3.medium
     | M3_XLarge   -- ^ m3.xlarge
+    | M4_Large    -- ^ m4.large
+    | M4_XLarge   -- ^ m4.xlarge
+    | M4_2XLarge  -- ^ m4.2xlarge
+    | M4_4XLarge  -- ^ m4.4xlarge
+    | M4_10XLarge -- ^ m4.10xlarge
     | R3_2XLarge  -- ^ r3.2xlarge
     | R3_4XLarge  -- ^ r3.4xlarge
     | R3_8XLarge  -- ^ r3.8xlarge
@@ -7631,6 +7636,11 @@ instance FromText InstanceType where
         "m3.large"    -> pure M3_Large
         "m3.medium"   -> pure M3_Medium
         "m3.xlarge"   -> pure M3_XLarge
+        "m4.large"    -> pure M4_Large
+        "m4.xlarge"   -> pure M4_XLarge
+        "m4.2xlarge"  -> pure M4_2XLarge
+        "m4.4xlarge"  -> pure M4_4XLarge
+        "m4.10xlarge" -> pure M4_10XLarge
         "r3.2xlarge"  -> pure R3_2XLarge
         "r3.4xlarge"  -> pure R3_4XLarge
         "r3.8xlarge"  -> pure R3_8XLarge
@@ -7684,6 +7694,11 @@ instance ToText InstanceType where
         M3_Large    -> "m3.large"
         M3_Medium   -> "m3.medium"
         M3_XLarge   -> "m3.xlarge"
+        M4_Large    -> "m4.large"
+        M4_XLarge   -> "m4.xlarge"
+        M4_2XLarge  -> "m4.2xlarge"
+        M4_4XLarge  -> "m4.4xlarge"
+        M4_10XLarge -> "m4.10xlarge"
         R3_2XLarge  -> "r3.2xlarge"
         R3_4XLarge  -> "r3.4xlarge"
         R3_8XLarge  -> "r3.8xlarge"
