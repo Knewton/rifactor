@@ -4,8 +4,12 @@ packages:
 - './amazonka-ec2-0.3.6'
 extra-deps: [ git-embed-0.1.0 ]
 resolver: lts-3.8
-# image:
-#   container:
-#     base: "dysinger/ubuntu-with-libgmp:14.04"
-#     entrypoints:
-#       - rifactor
+
+# NOTE: rifactor compiles to JS if desired
+# compiler: ghcjs-0.2.0.20151230.3_ghc-7.10.2
+# compiler-check: match-exact
+# setup-info:
+#   ghcjs:
+#     source:
+#       ghcjs-0.2.0.20151230.3_ghc-7.10.2:
+#         url: "https://github.com/nrolland/ghcjs/releases/download/v.0.2.0.20151230.3/ghcjs-0.2.0.20151230.3.tar.gz"
