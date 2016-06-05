@@ -15,15 +15,15 @@ module Rifactor.Types.AWS where
 
 import           BasePrelude
 import           Control.Lens hiding ((.=))
-import qualified Control.Monad.Trans.AWS as AWS
-import           Control.Monad.Trans.AWS hiding (Env)
 import           Data.Aeson (ToJSON, toJSON, object, (.=))
 import           Data.Aeson.TH (deriveToJSON)
 import           Data.Text (Text)
 import qualified Data.Text as T
+import           Network.AWS hiding (Env)
+import qualified Network.AWS as AWS
 import qualified Network.AWS.Data as AWS
 import qualified Network.AWS.EC2 as EC2
-import           Network.AWS.EC2 hiding (Instance,Region)
+import           Network.AWS.EC2 hiding (Instance)
 import           Rifactor.Types.Internal (deriveOptions)
 import           Rifactor.Types.Model
 
@@ -78,19 +78,19 @@ data IType =
 {- Eq -}
 
 instance Eq AWS.Env where
-  (==) e0 e1 = (e0 ^. envRegion == e1 ^. envRegion)
+  (==) e0 e1 = (e0 ^. AWS.envRegion == e1 ^. AWS.envRegion)
 
 instance Show AWS.Env where
-  show e = T.unpack (AWS.toText (e ^. envRegion))
+  show e = T.unpack (AWS.toText (e ^. AWS.envRegion))
 
 {- LENS -}
 
 $(makeLenses ''IType)
 
-{- JSON -}
+-- {- JSON -}
 
 instance ToJSON AWS.Env where
-  toJSON e = object ["region" .= (e ^. envRegion)]
+  toJSON e = object ["region" .= (e ^. AWS.envRegion)]
 
 $(deriveToJSON deriveOptions ''Region)
 $(deriveToJSON deriveOptions ''ArchitectureValues)
@@ -98,18 +98,18 @@ $(deriveToJSON deriveOptions ''AttachmentStatus)
 $(deriveToJSON deriveOptions ''BlockDeviceMapping)
 $(deriveToJSON deriveOptions ''CurrencyCodeValues)
 $(deriveToJSON deriveOptions ''DeviceType)
-$(deriveToJSON deriveOptions ''EbsBlockDevice)
-$(deriveToJSON deriveOptions ''EbsInstanceBlockDevice)
+$(deriveToJSON deriveOptions ''EBSBlockDevice)
+$(deriveToJSON deriveOptions ''EBSInstanceBlockDevice)
 $(deriveToJSON deriveOptions ''GroupIdentifier)
 $(deriveToJSON deriveOptions ''HypervisorType)
-$(deriveToJSON deriveOptions ''IamInstanceProfile)
+$(deriveToJSON deriveOptions ''IAMInstanceProfile)
 $(deriveToJSON deriveOptions ''EC2.Instance)
 $(deriveToJSON deriveOptions ''InstanceBlockDeviceMapping)
 $(deriveToJSON deriveOptions ''InstanceLifecycleType)
 $(deriveToJSON deriveOptions ''InstanceNetworkInterface)
 $(deriveToJSON deriveOptions ''InstanceNetworkInterfaceAssociation)
 $(deriveToJSON deriveOptions ''InstanceNetworkInterfaceAttachment)
-$(deriveToJSON deriveOptions ''InstancePrivateIpAddress)
+$(deriveToJSON deriveOptions ''InstancePrivateIPAddress)
 $(deriveToJSON deriveOptions ''InstanceState)
 $(deriveToJSON deriveOptions ''InstanceStateName)
 $(deriveToJSON deriveOptions ''InstanceType)

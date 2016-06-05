@@ -18,8 +18,6 @@ module Rifactor.Plan where
 
 import           BasePrelude
 import           Control.Lens hiding ((&))
-import qualified Control.Monad.Trans.AWS as AWS
-import           Control.Monad.Trans.AWS hiding (Env, sourceFile)
 import           Control.Monad.Trans.Resource (runResourceT)
 import           Data.Aeson
 import qualified Data.ByteString.Lazy.Char8 as LB
@@ -30,7 +28,7 @@ import           Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.UUID as UUID
 import           Data.UUID.V4
-import qualified Network.AWS.Data as AWS
+import           Network.AWS (runAWS, send, newLogger, LogLevel(Info,Trace))
 import qualified Network.AWS.EC2 as EC2
 import           Network.AWS.EC2 hiding (Error,Instance,Region)
 import           Rifactor.AWS
@@ -76,18 +74,16 @@ exec opts =
             noEnv <- noKeysEnv
             envs <- initEnvs cfg lgr
             pending <-
-              runAWST (noEnv ^. eEnv)
-                      (reservedInstancesModifications envs)
+              try . runResourceT $ runAWS (noEnv ^. eEnv) (reservedInstancesModifications envs)
             case pending of
-              Left err -> print err >> exitFailure
+              Left err -> print (err :: SomeException) >> exitFailure
               Right p ->
                 do when (not . null $ p)
                         (error "There are pending RI modifications.")
                    fetch <-
-                     runAWST (noEnv ^. eEnv)
-                             (fetchFromAmazon envs)
+                     try . runResourceT $ runAWS  (noEnv ^. eEnv) (fetchFromAmazon envs)
                    case fetch of
-                     (Left err) -> print err >> exitFailure
+                     (Left err) -> print (err :: SomeException) >> exitFailure
                      (Right p') ->
                        do let (Plans ps) = transition p'
                               changes = filter (\x ->
@@ -108,12 +104,12 @@ exec opts =
                                                               (ANSI.hang 2
                                                                          (ANSI.indent 2 $
                                                                           ANSI.text $
-                                                                          show err) ANSI.<>
+                                                                          show (err :: SomeException)) ANSI.<>
                                                                ANSI.linebreak ANSI.<>
                                                                ANSI.linebreak)
                                                           Right rs ->
                                                             case rs ^.
-                                                                 mrirReservedInstancesModificationId of
+                                                                 mrirsReservedInstancesModificationId of
                                                               Nothing ->
                                                                 ANSI.putDoc
                                                                   (ANSI.hang 2
@@ -137,12 +133,12 @@ exec opts =
                                                               (ANSI.hang 2
                                                                          (ANSI.indent 2 $
                                                                           ANSI.text $
-                                                                          show err) ANSI.<>
+                                                                          show (err :: SomeException)) ANSI.<>
                                                                ANSI.linebreak ANSI.<>
                                                                ANSI.linebreak)
                                                           Right rs ->
                                                             case rs ^.
-                                                                 mrirReservedInstancesModificationId of
+                                                                 mrirsReservedInstancesModificationId of
                                                               Nothing ->
                                                                 ANSI.putDoc
                                                                   (ANSI.hang 2
@@ -242,9 +238,9 @@ mergeInstances _ _ p = p
 
 mkConfig :: [AwsResource] -> Maybe ReservedInstancesConfiguration
 mkConfig is@(Instance _ i:_) =
-          Just (mkConfig' (i ^. i1Placement ^. pAvailabilityZone)
-                        (i ^. i1InstanceType)
-                        (isJust (i ^. i1VpcId))
+          Just (mkConfig' (i ^. insPlacement ^. pAvailabilityZone)
+                        (i ^. insInstanceType)
+                        (isJust (i ^. insVPCId))
                         (length is))
 mkConfig _ = Nothing
 
@@ -303,14 +299,14 @@ foldConfigs is rq =
                  rq'
                  (mkConfig is')
 
-doUpdateReserved :: AwsPlan -> IO (Either Error ModifyReservedInstancesResponse)
+doUpdateReserved :: Exception e => AwsPlan -> IO (Either e ModifyReservedInstancesResponse)
 doUpdateReserved s@Split{..} =
   do uuid <- nextRandom
      let rs@(Reserved _ r) = head (reserved s) -- FIXME
          rq =
            modifyReservedInstances &
            (mriReservedInstancesIds .~
-            [r ^. ri1ReservedInstancesId ^?! _Just]) &
+            [r ^. riReservedInstancesId ^?! _Just]) &
            (mriClientToken ?~
             T.pack (UUID.toString uuid))
          rq' =
@@ -320,10 +316,10 @@ doUpdateReserved s@Split{..} =
          cs =
            reverse (findByGroup
                       (find1ByType
-                         ((r ^. ri1InstanceType) ^?!
+                         ((r ^. riInstanceType) ^?!
                           _Just) ^.
                        insGroup)) -- FIXME
-         az = r ^. ri1AvailabilityZone
+         az = r ^. riAvailabilityZone
          v = isVPC rs
          rq'' =
            liftA2 (\a b ->
@@ -332,31 +328,29 @@ doUpdateReserved s@Split{..} =
                   rq'
      case rq'' of
        Just rq''' ->
-         runAWST (rs ^. rEnv ^. eEnv)
-                 (send rq''')
+         try . runResourceT $ runAWS (rs ^. rEnv ^. eEnv) (send rq''')
        Nothing -> error "nothing"
 
-doMergeReserved :: AwsPlan -> IO (Either Error ModifyReservedInstancesResponse)
+doMergeReserved :: Exception e => AwsPlan -> IO (Either e ModifyReservedInstancesResponse)
 doMergeReserved m@Merge{..} =
   do uuid <- nextRandom
      let rs@(h@(Reserved e r):_t) = reserved m
          rq =
            modifyReservedInstances &
            (mriReservedInstancesIds .~
-            (map (\(Reserved _ r') -> r' ^. ri1ReservedInstancesId ^?! _Just) rs)) &
+            (map (\(Reserved _ r') -> r' ^. riReservedInstancesId ^?! _Just) rs)) &
            (mriClientToken ?~
             T.pack (UUID.toString uuid))
          maybeAvail = availableNormFactor m
          cs =
            reverse (findByGroup
                       (find1ByType
-                         ((r ^. ri1InstanceType) ^?!
+                         ((r ^. riInstanceType) ^?!
                           _Just) ^.
                        insGroup)) -- FIXME
-         az = r ^. ri1AvailabilityZone
+         az = r ^. riAvailabilityZone
          v = isVPC h
      case fmap (\a -> foldPadding az v a cs rq) maybeAvail of
        Just rq'' ->
-         runAWST (e ^. eEnv)
-                 (send rq'')
+         try . runResourceT $ runAWS (e ^. eEnv) (send rq'')
        Nothing -> error "nothing"

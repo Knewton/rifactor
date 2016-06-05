@@ -90,37 +90,37 @@ instance Report AwsPlan where
 instance Report EC2.ReservedInstances where
   report x =
     "reserved-instances " <>
-    (case (x ^. ri1ReservedInstancesId) of
+    (case (x ^. riReservedInstancesId) of
        Just i ->
          toDoc (T.take 7 (AWS.toText i)) <>
          "|"
        Nothing -> "") <>
-    (case fmap find1ByType (x ^. ri1InstanceType) of
+    (case fmap find1ByType (x ^. riInstanceType) of
        Just i ->
          toDoc (T.toLower (T.pack (show (i ^. insGroup)))) <>
          "|"
        Nothing -> "") <>
-    (if ((x ^. ri1ProductDescription) `elem`
-         [Just RIPDWindows,Just RIPDWindowsAmazonVPC])
+    (if ((x ^. riProductDescription) `elem`
+         [Just RIDWindows,Just RIDWindowsAmazonVPC])
         then "vpc"
         else "classic") <>
     "|" <>
-    (case (x ^. ri1AvailabilityZone) of
+    (case (x ^. riAvailabilityZone) of
        Just az -> toDoc az
        Nothing -> "")
 
 instance Report EC2.Instance where
   report x =
     "instance " <>
-    toDoc (x ^. i1InstanceId) <>
+    toDoc (x ^. insInstanceId) <>
     "|" <>
-    toDoc (T.toLower (AWS.toText (x ^. i1InstanceType))) <>
+    toDoc (T.toLower (AWS.toText (x ^. insInstanceType))) <>
     "|" <>
     maybe "classic"
           (\_ -> "vpc")
-          (x ^. i1VpcId) <>
+          (x ^. insVPCId) <>
     "|" <>
-    (case x ^. i1Placement ^. pAvailabilityZone of
+    (case x ^. insPlacement ^. pAvailabilityZone of
        Just az -> toDoc az
        Nothing -> "")
 
