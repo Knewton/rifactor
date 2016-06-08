@@ -30,7 +30,7 @@ library
                        Rifactor.Types.Internal
                        Rifactor.Types.Model
                        Rifactor.Types.Options
-  ghc-options:         -Wall
+  ghc-options:         -Werror
   build-depends:       base >=4.7 && <5
                      , aeson
                      , amazonka      
@@ -56,7 +56,7 @@ executable rifactor
   default-language:    Haskell2010
   hs-source-dirs:      src
   main-is:             Main.hs
-  ghc-options:         -Wall
+  ghc-options:         -Werror
   other-modules:       Rifactor.AWS
                        Rifactor.Plan
                        Rifactor.Report
@@ -97,7 +97,7 @@ test-suite test
   hs-source-dirs:      tests
   main-is:             test.hs
   type:                exitcode-stdio-1.0
-  ghc-options:         -Wall
+  ghc-options:         -Werror
   build-depends:       base >=4.7 && <5
                      , aeson
                      , amazonka
