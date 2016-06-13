@@ -11,8 +11,8 @@ packages:
 #   - amazonka-ec2
 #   - core
 extra-deps:
-- amazonka-1.4.2
-- amazonka-core-1.4.2
-- amazonka-ec2-1.4.2
+- amazonka-1.4.3
+- amazonka-core-1.4.3
+- amazonka-ec2-1.4.3
 - git-embed-0.1.0
 - unordered-containers-0.2.7.0
