@@ -32,10 +32,10 @@ data IGroup
   | C2
   | C3
   | C4
-  | CC1
   | CC2
   | CG1
   | CR1
+  | D2
   | G2
   | HI1
   | HS1
@@ -48,10 +48,12 @@ data IGroup
   | R3
   | T1
   | T2
+  | X1
   deriving (Enum,Eq,Ord,Show)
 
 data ISize
-  = Micro
+  = Nano
+  | Micro
   | Small
   | Medium
   | Large
@@ -60,6 +62,7 @@ data ISize
   | XLarge4X
   | XLarge8X
   | XLarge10X
+  | XLarge32X
   deriving (Enum,Eq,Ord,Show)
 
 data IType =
