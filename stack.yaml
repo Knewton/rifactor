@@ -1,15 +1,18 @@
-flags: {}
+resolver: lts-6.2 # OR nightly-2016-06-05
 packages:
 - '.'
-- './amazonka-ec2-0.3.6'
-extra-deps: [ git-embed-0.1.0 ]
-resolver: lts-3.8
-
-# NOTE: rifactor compiles to JS if desired
-# compiler: ghcjs-0.2.0.20151230.3_ghc-7.10.2
-# compiler-check: match-exact
-# setup-info:
-#   ghcjs:
-#     source:
-#       ghcjs-0.2.0.20151230.3_ghc-7.10.2:
-#         url: "https://github.com/nrolland/ghcjs/releases/download/v.0.2.0.20151230.3/ghcjs-0.2.0.20151230.3.tar.gz"
+# # NOTE: Uncomment to work on the latest amazonka master
+# - location:
+#     git: https://github.com/brendanhay/amazonka.git
+#     commit: master
+#   extra-dep: true
+#   subdirs:
+#   - amazonka
+#   - amazonka-ec2
+#   - core
+extra-deps:
+- amazonka-1.4.2
+- amazonka-core-1.4.2
+- amazonka-ec2-1.4.2
+- git-embed-0.1.0
+- unordered-containers-0.2.7.0

@@ -18,17 +18,16 @@ module Rifactor.AWS where
 
 import           BasePrelude
 import           Control.Lens hiding ((&))
-import qualified Control.Monad.Trans.AWS as AWS
-import           Control.Monad.Trans.AWS hiding (Empty,Env)
 import qualified Data.ByteString.Char8 as B
 import           Data.Set (Set)
 import qualified Data.Set as Set
 import           Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
-import qualified Network.AWS.Data as AWS
+import           Network.AWS
+import           Network.AWS.Data (toText)
 import qualified Network.AWS.EC2 as EC2
-import           Network.AWS.EC2 hiding (Instance,Region)
+import           Network.AWS.EC2 hiding (Instance)
 import           Rifactor.Types
 
 default (Text)
@@ -38,7 +37,7 @@ default (Text)
 noKeysEnv :: IO AwsEnv
 noKeysEnv =
   Env <$>
-  AWS.getEnv
+  newEnv
     NorthVirginia
     (FromKeys (AccessKey B.empty)
               (SecretKey B.empty)) <*>
@@ -50,7 +49,7 @@ initEnvs cfg lgr =
              , a <- cfg ^. accounts]
       (\(Account n k s,r) ->
          Env <$>
-         (AWS.getEnv
+         (newEnv
             r
             (FromKeys (AccessKey (T.encodeUtf8 k))
                       (SecretKey (T.encodeUtf8 s))) <&>
@@ -63,14 +62,13 @@ reservedInstancesModifications :: [AwsEnv] -> AWS [ReservedInstancesModification
 reservedInstancesModifications =
   liftA concat .
   traverse (\e ->
-              runAWST (e ^. eEnv)
-                      (view drimrReservedInstancesModifications <$>
-                       send (describeReservedInstancesModifications &
-                             (drimFilters .~
-                              [filter' "status" &
-                               fValues .~
-                               [T.pack "processing"]]))) >>=
-              hoistEither)
+              runAWS (e ^. eEnv)
+                     (view drimrsReservedInstancesModifications <$>
+                      send (describeReservedInstancesModifications &
+                            (drimFilters .~
+                             [filter' "status" &
+                              fValues .~
+                              [T.pack "processing"]]))))
 
 fetchFromAmazon :: [AwsEnv] -> AWS AwsPlan
 fetchFromAmazon es =
@@ -84,30 +82,26 @@ fetchInstances :: [AwsEnv] -> AWS [AwsResource]
 fetchInstances =
   liftA concat .
   traverse (\e ->
-              runAWST (e ^. eEnv)
-                      (view dirReservations <$>
-                       send (describeInstances & di1Filters .~
+              map (Instance e) .
+              concatMap (view rInstances) <$>
+              runAWS (e ^. eEnv)
+                     (view dirsReservations <$>
+                      send (describeInstances & diiFilters .~
                              [filter' "instance-state-name" &
                               fValues .~
-                              [AWS.toText ISNRunning]])) >>=
-              hoistEither >>=
-              pure .
-              map (Instance e) .
-              concatMap (view rInstances))
+                              [toText ISNRunning]])))
 
 fetchReserved :: [AwsEnv] -> AWS [AwsResource]
 fetchReserved =
   liftA concat .
   traverse (\e ->
-              runAWST (e ^. eEnv)
-                      (view drirReservedInstances <$>
-                       send (describeReservedInstances & driFilters .~
-                             [filter' "state" &
-                              fValues .~
-                              [AWS.toText RISActive]])) >>=
-              hoistEither >>=
-              pure .
-              map (Reserved e))
+              map (Reserved e) <$>
+              runAWS (e ^. eEnv)
+                     (view drirsReservedInstances <$>
+                      send (describeReservedInstances & driFilters .~
+                            [filter' "state" &
+                             fValues .~
+                             [toText RSActive]])))
 
 {- AWS Plan Queries -}
 
@@ -125,7 +119,7 @@ iTypeSet :: AwsPlan -> Set IType
 iTypeSet = foldr f Set.empty
   where f (Reserved _ _) z = z
         f (Instance _ i) z =
-          Set.insert (find1ByType (i ^. i1InstanceType))
+          Set.insert (find1ByType (i ^. insInstanceType))
                      z
 
 rITypeSet :: AwsPlan -> Maybe (Set IType)
@@ -133,7 +127,7 @@ rITypeSet = foldr f (Just Set.empty)
   where f (Reserved _ r) (Just z) =
           fmap (flip Set.insert z .
                 find1ByType)
-               (r ^. ri1InstanceType)
+               (r ^. riInstanceType)
         f _ z = z
 
 regionSet  :: AwsPlan -> Set Region
@@ -149,17 +143,17 @@ zoneSet :: AwsPlan -> Maybe (Set Text)
 zoneSet = foldr f (Just Set.empty)
   where f (Reserved _ r) (Just z) =
           fmap (flip Set.insert z)
-               (r ^. ri1AvailabilityZone)
+               (r ^. riAvailabilityZone)
         f (Instance _ i) (Just z) =
           fmap (flip Set.insert z)
-               (i ^. i1Placement ^. pAvailabilityZone)
+               (i ^. insPlacement ^. pAvailabilityZone)
         f _ z = z
 
 instanceNormFactor :: AwsPlan -> Double
 instanceNormFactor = foldr f 0
   where f (Instance _ i) z =
           z +
-          find1ByType (i ^. i1InstanceType) ^.
+          find1ByType (i ^. insInstanceType) ^.
           insFactor
         f _ z = z
 
@@ -168,9 +162,9 @@ rInstanceNormFactor = foldr f (Just 0)
   where f (Reserved _ r) (Just z) =
           fmap (z +)
                (liftA2 (*)
-                       (fmap realToFrac (r ^. ri1InstanceCount))
+                       (fmap realToFrac (r ^. riInstanceCount))
                        (fmap (view insFactor)
-                             (fmap find1ByType (r ^. ri1InstanceType))))
+                             (fmap find1ByType (r ^. riInstanceType))))
         f _ z = z
 
 instanceCount :: AwsPlan -> Int
@@ -181,7 +175,7 @@ instanceCount m = foldr f 0 m
 rInstanceCount :: AwsPlan -> Maybe Int
 rInstanceCount m = foldr f (Just 0) m
   where f (Reserved _ r) (Just z) =
-          fmap (+ z) (r ^. ri1InstanceCount)
+          fmap (+ z) (r ^. riInstanceCount)
         f _ z = z
 
 availableNormFactor :: AwsPlan -> Maybe Double
@@ -277,18 +271,18 @@ isMergeable a@(Reserved _ r0) b@(Reserved _ r1) =
   samePlatform a b &&
   sameRegion a b &&
   -- not the same reserved instances
-  (r0 ^. ri1ReservedInstancesId /= r1 ^. ri1ReservedInstancesId) &&
+  (r0 ^. riReservedInstancesId /= r1 ^. riReservedInstancesId) &&
   -- but still the same end date
-  (r0 ^. ri1End == r1 ^. ri1End) &&
+  (r0 ^. riEnd == r1 ^. riEnd) &&
   -- and the same offering type
-  (r0 ^. ri1OfferingType == r1 ^. ri1OfferingType)
+  (r0 ^. riOfferingType == r1 ^. riOfferingType)
 isMergeable _ _ = False
 
 isVPC :: AwsResource -> Bool
 isVPC (Reserved _ r) =
-  (r ^. ri1ProductDescription) `elem`
-  [Just RIPDLinuxUNIXAmazonVPC,Just RIPDWindowsAmazonVPC]
-isVPC (Instance _ i) = isJust (i ^. i1VpcId)
+  (r ^. riProductDescription) `elem`
+  [Just RIDLinuxUnixAmazonVPC,Just RIDWindowsAmazonVPC]
+isVPC (Instance _ i) = isJust (i ^. insVPCId)
 
 sameAccount :: AwsResource -> AwsResource -> Bool
 sameAccount a b = a ^. rEnv ^. eName == b ^. rEnv ^. eName
@@ -299,81 +293,81 @@ sameRegion a b =
 
 sameInstanceType :: AwsResource -> AwsResource -> Bool
 sameInstanceType (Reserved _ r0) (Reserved _ r1)=
-  (r0 ^. ri1InstanceType == r1 ^. ri1InstanceType)
+  (r0 ^. riInstanceType == r1 ^. riInstanceType)
 sameInstanceType (Instance _ a) (Instance _ b) =
-  (a ^. i1InstanceType == b ^. i1InstanceType)
+  (a ^. insInstanceType == b ^. insInstanceType)
 sameInstanceType (Reserved _ r) (Instance _ i)=
-  (r ^. ri1InstanceType == i ^? i1InstanceType)
+  (r ^. riInstanceType == i ^? insInstanceType)
 sameInstanceType a@Instance{..} b = sameInstanceType b a
 
 sameAvailabilityZone :: AwsResource -> AwsResource -> Bool
 sameAvailabilityZone (Reserved _ r0) (Reserved _ r1)=
-  (r0 ^. ri1AvailabilityZone == r1 ^. ri1AvailabilityZone)
+  (r0 ^. riAvailabilityZone == r1 ^. riAvailabilityZone)
 sameAvailabilityZone (Instance _ i0) (Instance _ i1) =
-  (i0 ^. i1Placement ^. pAvailabilityZone) ==
-  (i1 ^. i1Placement ^. pAvailabilityZone)
+  (i0 ^. insPlacement ^. pAvailabilityZone) ==
+  (i1 ^. insPlacement ^. pAvailabilityZone)
 sameAvailabilityZone (Reserved _ r) (Instance _ i) =
-  (r ^. ri1AvailabilityZone == i ^. i1Placement ^. pAvailabilityZone)
+  (r ^. riAvailabilityZone == i ^. insPlacement ^. pAvailabilityZone)
 sameAvailabilityZone a@Instance{..} b = sameAvailabilityZone b a
 
 sameGroup :: AwsResource -> AwsResource -> Bool
 sameGroup (Reserved _ r0) (Reserved _ r1) =
-  (find1ByType (r0 ^. ri1InstanceType ^?! _Just) ^. -- FIXME
+  (find1ByType (r0 ^. riInstanceType ^?! _Just) ^. -- FIXME
    insGroup ==
-   find1ByType (r1 ^. ri1InstanceType ^?! _Just) ^. -- FIXME
+   find1ByType (r1 ^. riInstanceType ^?! _Just) ^. -- FIXME
    insGroup)
 sameGroup (Instance _ a) (Instance _ b) =
-  (find1ByType (a ^. i1InstanceType) ^.
+  (find1ByType (a ^. insInstanceType) ^.
    insGroup ==
-   find1ByType (b ^. i1InstanceType) ^.
+   find1ByType (b ^. insInstanceType) ^.
    insGroup)
 sameGroup (Reserved _ r) (Instance _ i) =
   fmap (view insGroup . find1ByType)
-       (r ^. ri1InstanceType) ==
-  Just (find1ByType (i ^. i1InstanceType) ^.
+       (r ^. riInstanceType) ==
+  Just (find1ByType (i ^. insInstanceType) ^.
         insGroup)
 sameGroup a@Instance{..} b = sameGroup b a
 
 sameNetwork :: AwsResource -> AwsResource -> Bool
 sameNetwork (Reserved _ r0) (Reserved _ r1) =
-  (((r0 ^. ri1ProductDescription) `elem`
-    [Just RIPDLinuxUNIXAmazonVPC,Just RIPDWindowsAmazonVPC]) ==
-   ((r1 ^. ri1ProductDescription) `elem`
-    [Just RIPDLinuxUNIXAmazonVPC,Just RIPDWindowsAmazonVPC]))
+  (((r0 ^. riProductDescription) `elem`
+    [Just RIDLinuxUnixAmazonVPC,Just RIDWindowsAmazonVPC]) ==
+   ((r1 ^. riProductDescription) `elem`
+    [Just RIDLinuxUnixAmazonVPC,Just RIDWindowsAmazonVPC]))
 sameNetwork (Instance _ i0) (Instance _ i1) =
-  i0 ^. i1VpcId == i1 ^. i1VpcId
+  i0 ^. insVPCId == i1 ^. insVPCId
 sameNetwork (Reserved _ r) (Instance _ i) =
-  (((r ^. ri1ProductDescription) `elem`
-    [Just RIPDLinuxUNIXAmazonVPC,Just RIPDWindowsAmazonVPC]) ==
-   isJust (i ^. i1VpcId))
+  (((r ^. riProductDescription) `elem`
+    [Just RIDLinuxUnixAmazonVPC,Just RIDWindowsAmazonVPC]) ==
+   isJust (i ^. insVPCId))
 sameNetwork a@Instance{..} b = sameNetwork b a
 
 samePlatform :: AwsResource -> AwsResource -> Bool
 samePlatform (Reserved _ r0) (Reserved _ r1) =
-  (((r0 ^. ri1ProductDescription) `elem`
-    [Just RIPDWindows,Just RIPDWindowsAmazonVPC]) ==
-   ((r1 ^. ri1ProductDescription) `elem`
-    [Just RIPDWindows,Just RIPDWindowsAmazonVPC]))
+  (((r0 ^. riProductDescription) `elem`
+    [Just RIDWindows,Just RIDWindowsAmazonVPC]) ==
+   ((r1 ^. riProductDescription) `elem`
+    [Just RIDWindows,Just RIDWindowsAmazonVPC]))
 samePlatform (Instance _ a) (Instance _ b) =
-  (a ^. i1Platform == b ^. i1Platform)
+  (a ^. insPlatform == b ^. insPlatform)
 samePlatform (Reserved _ r) (Instance _ i) =
-  (((r ^. ri1ProductDescription) `elem`
-    [Just RIPDWindows,Just RIPDWindowsAmazonVPC]) ==
-   ((i ^. i1Platform) ==
+  (((r ^. riProductDescription) `elem`
+    [Just RIDWindows,Just RIDWindowsAmazonVPC]) ==
+   ((i ^. insPlatform) ==
     Just Windows))
 samePlatform a@Instance{..} b = samePlatform b a
 
 comparingResource :: AwsResource -> AwsResource -> Ordering
 comparingResource (Reserved _ r0) (Reserved _ r1) =
-  comparing (view ri1InstanceType) r0 r1 <>
-  comparing (view ri1OfferingType) r0 r1 <>
-  comparing (view ri1AvailabilityZone) r0 r1 <>
-  comparing (view ri1ProductDescription) r0 r1
+  comparing (view riInstanceType) r0 r1 <>
+  comparing (view riOfferingType) r0 r1 <>
+  comparing (view riAvailabilityZone) r0 r1 <>
+  comparing (view riProductDescription) r0 r1
 comparingResource (Instance _ i0) (Instance _ i1) =
-  comparing (view i1VpcId) i0 i1 <>
-  comparing (view i1InstanceType) i0 i1 <>
-  comparing (view i1Platform) i0 i1 <>
-  comparing (view pAvailabilityZone . view i1Placement) i0 i1
+  comparing (view insVPCId) i0 i1 <>
+  comparing (view insInstanceType) i0 i1 <>
+  comparing (view insPlatform) i0 i1 <>
+  comparing (view pAvailabilityZone . view insPlacement) i0 i1
 comparingResource _ (Instance _ _) = GT
 comparingResource (Instance _ _) _ = LT
 
@@ -381,8 +375,8 @@ matchingResource :: AwsResource -> AwsResource -> Bool
 matchingResource a@(Reserved _ r0) b@(Reserved _ r1) =
   sameAvailabilityZone a b &&
   sameInstanceType a b &&
-  (r0 ^. ri1OfferingType == r1 ^. ri1OfferingType) &&
-  (r0 ^. ri1ProductDescription == r1 ^. ri1ProductDescription)
+  (r0 ^. riOfferingType == r1 ^. riOfferingType) &&
+  (r0 ^. riProductDescription == r1 ^. riProductDescription)
 matchingResource a@(Instance _ _) b@(Instance _ _) =
   sameAvailabilityZone a b &&
   sameInstanceType a b &&
