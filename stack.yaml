@@ -1,14 +1,18 @@
-resolver: lts-6.0 # OR nightly-2016-06-05
+resolver: lts-6.2 # OR nightly-2016-06-05
 packages:
-  - '.'
-  - location:
-      git: https://github.com/brendanhay/amazonka.git
-      commit: 9f7edb9b27811a09ac8245bcc7e4696a076e1a8
-    extra-dep: true
-    subdirs:
-      - amazonka
-      - amazonka-ec2
-      - core
+- '.'
+# # NOTE: Uncomment to work on the latest amazonka master
+# - location:
+#     git: https://github.com/brendanhay/amazonka.git
+#     commit: master
+#   extra-dep: true
+#   subdirs:
+#   - amazonka
+#   - amazonka-ec2
+#   - core
 extra-deps:
-  - git-embed-0.1.0
-  - unordered-containers-0.2.7.0
+- amazonka-1.4.2
+- amazonka-core-1.4.2
+- amazonka-ec2-1.4.2
+- git-embed-0.1.0
+- unordered-containers-0.2.7.0
