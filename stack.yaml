@@ -1,4 +1,4 @@
-resolver: lts-6.2 # OR nightly-2016-06-05
+resolver: lts-6.6 # OR nightly-2016-07-05
 packages:
 - '.'
 # # NOTE: Uncomment to work on the latest amazonka master
@@ -11,8 +11,4 @@ packages:
 #   - amazonka-ec2
 #   - core
 extra-deps:
-- amazonka-1.4.3
-- amazonka-core-1.4.3
-- amazonka-ec2-1.4.3
 - git-embed-0.1.0
-- unordered-containers-0.2.7.0
