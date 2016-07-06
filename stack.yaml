@@ -12,3 +12,7 @@ packages:
 #   - core
 extra-deps:
 - git-embed-0.1.0
+stack:
+  images:
+  - name: dysinger/rifactor
+    base: dysinger/ubuntu-with-libgmp:16.04
